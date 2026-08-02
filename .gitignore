@@ -17,7 +17,6 @@ examples/proposals/
 examples/selftest/
 .DS_Store
 .idea/
-.vscode/
 
 # Ignore all markdown files except README files
 *.md
@@ -25,3 +24,7 @@ examples/selftest/
 !readme.md
 !**/README.md
 !**/readme.md
+branch_structure.json
+temp_auto_push.bat
+temp_interactive_push.bat
+.gitignore
