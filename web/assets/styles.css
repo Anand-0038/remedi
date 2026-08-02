@@ -860,18 +860,24 @@ button:disabled {
 }
 
 .tools {
-  display: grid;
-  gap: 0.45rem;
+  display: block;
 }
 
 .tools li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0.2rem 0.35rem;
+  margin-bottom: 0.45rem;
   border-bottom: 1px solid var(--line);
   padding-bottom: 0.55rem;
   color: var(--muted);
   font: 0.75rem/1.6 var(--mono);
+  overflow-wrap: anywhere;
 }
 
 .tools li:last-child {
+  margin-bottom: 0;
   border-bottom: 0;
 }
 
@@ -881,8 +887,11 @@ button:disabled {
 }
 
 .tools .pill {
-  margin-right: 0.35rem;
-  vertical-align: 1px;
+  flex: 0 0 auto;
+  margin-right: 0;
+  padding: 0.08rem 0.32rem;
+  line-height: 1.2;
+  vertical-align: baseline;
 }
 
 .artifact-list {
@@ -969,8 +978,12 @@ button.icon-button {
 
 .writeback-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(280px, 0.85fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: 1.2rem;
+}
+
+.writeback-grid > div {
+  min-width: 0;
 }
 
 .writeback-grid h4 {
