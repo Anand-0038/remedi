@@ -68,7 +68,31 @@ def main() -> None:
         desktop.get_by_role("button", name="Apply sealed plan").click()
         wait_for_status(desktop, "Applied proposal")
         assert desktop.locator("#receipt-state").inner_text() == "Applied · integrity verified"
+        desktop.evaluate(
+            """async () => {
+              await document.fonts.ready;
+              await new Promise((resolve) =>
+                requestAnimationFrame(() => requestAnimationFrame(resolve))
+              );
+            }"""
+        )
+        assert desktop.locator(".writeback-grid").evaluate(
+            "element => element.scrollWidth <= element.clientWidth + 1"
+        )
+        writeback_items = desktop.locator("#writeback li")
+        for index in range(writeback_items.count()):
+            item = writeback_items.nth(index)
+            assert item.evaluate("element => element.scrollWidth <= element.clientWidth + 1")
+        item_boxes = writeback_items.evaluate_all(
+            """elements => elements.map((element) => {
+              const box = element.getBoundingClientRect();
+              return { top: box.top, bottom: box.bottom };
+            })"""
+        )
+        for previous_box, item_box in zip(item_boxes, item_boxes[1:]):
+            assert item_box["top"] >= previous_box["bottom"] - 1
         desktop.screenshot(path=SCREENSHOT_DIR / "03-applied.png", full_page=True)
+        desktop.locator(".writeback-section").screenshot(path=SCREENSHOT_DIR / "05-writeback.png")
 
         desktop.get_by_role("button", name="Run offline verification").click()
         wait_for_status(desktop, "Offline verification passed")
