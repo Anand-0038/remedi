@@ -6,7 +6,7 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, model_validator
 
 from remedi import __version__
 from remedi.agents.coder import CodeGenerationError
@@ -40,13 +40,25 @@ def _safe_artifact_path(root: Path, *parts: str) -> Path:
 
 
 class RunRequest(BaseModel):
-    incident_id: str
+    incident_id: str = Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
     dry_run: bool = True
 
 
 class ApplyRequest(BaseModel):
-    incident_id: str | None = None
-    run_id: str | None = None
+    incident_id: str | None = Field(
+        default=None,
+        pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$",
+    )
+    run_id: str | None = Field(
+        default=None,
+        pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$",
+    )
+
+    @model_validator(mode="after")
+    def require_one_proposal_selector(self) -> "ApplyRequest":
+        if (self.incident_id is None) == (self.run_id is None):
+            raise ValueError("Provide exactly one of run_id or incident_id")
+        return self
 
 
 def create_app() -> FastAPI:
@@ -65,24 +77,39 @@ def create_app() -> FastAPI:
     orch = RemediOrchestrator(settings=settings)
 
     @api.middleware("http")
-    async def require_live_api_key(request: Request, call_next):
+    async def secure_api(request: Request, call_next):
         if (
             api_auth_required
             and request.url.path.startswith("/api/")
             and request.url.path != "/api/health"
         ):
             authorization = request.headers.get("authorization", "")
-            bearer = authorization.removeprefix("Bearer ").strip()
+            scheme, separator, credentials = authorization.partition(" ")
+            bearer = credentials.strip() if separator and scheme.lower() == "bearer" else ""
             provided = request.headers.get("x-api-key", "") or bearer
             if not provided or not hmac.compare_digest(provided, settings.remedi_api_key):
-                return JSONResponse(
+                response = JSONResponse(
                     status_code=401,
                     content={
                         "detail": "A valid Remedi API key is required for this configuration.",
                         "code": "api_auth_required",
                     },
                 )
-        return await call_next(request)
+            else:
+                response = await call_next(request)
+        else:
+            response = await call_next(request)
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; img-src 'self' data:; "
+            "style-src 'self' https://fonts.googleapis.com; "
+            "font-src https://fonts.gstatic.com; connect-src 'self'; "
+            "object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+        )
+        response.headers["Referrer-Policy"] = "no-referrer"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+        return response
 
     @api.exception_handler(LiveIntegrationError)
     def live_integration_error(
@@ -251,6 +278,3 @@ def create_app() -> FastAPI:
             return FileResponse(WEB_DIR / "index.html")
 
     return api
-
-
-app = create_app()

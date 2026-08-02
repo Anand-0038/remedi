@@ -13,7 +13,8 @@ class LineageAgent:
     def analyze(self, incident: Incident, max_hops: int = 3) -> BlastRadius:
         raw_down = self.connector.get_lineage_downstream(incident.entity.urn, max_hops=max_hops)
         raw_up = self.connector.get_lineage_upstream(incident.entity.urn, max_hops=max_hops)
-        _ = self.connector.get_dataset_queries(incident.entity.urn)
+        observed_queries = self.connector.get_dataset_queries(incident.entity.urn)
+        incident.sample_queries = list(dict.fromkeys([*incident.sample_queries, *observed_queries]))
 
         downstream: list[DownstreamImpact] = []
         upstream: list[DownstreamImpact] = []

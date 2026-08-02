@@ -1,4 +1,4 @@
-"""Shared tool-call audit log for judge-visible DataHub operations."""
+"""Shared tool-call audit log for inspectable DataHub operations."""
 
 from __future__ import annotations
 

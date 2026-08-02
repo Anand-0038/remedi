@@ -122,7 +122,7 @@ class RunStep(BaseModel):
 
 
 class ToolCall(BaseModel):
-    """Judge-visible DataHub / MCP-shaped tool audit entry."""
+    """Inspectable DataHub / MCP-shaped tool audit entry."""
 
     tool: str
     args: dict[str, Any] = Field(default_factory=dict)

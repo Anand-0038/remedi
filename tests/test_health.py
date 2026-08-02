@@ -11,6 +11,14 @@ from remedi.config import Settings
 from remedi.api.app import _resolve_web_dir, create_app
 
 
+@pytest.fixture(autouse=True)
+def use_explicit_offline_settings(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(
+        "remedi.api.app.get_settings",
+        lambda: Settings(remedi_mode="fixture"),
+    )
+
+
 def test_health_gates_and_version():
     client = TestClient(create_app())
     r = client.get("/api/health")
@@ -34,6 +42,9 @@ def test_root_serves_ui():
     r = client.get("/")
     assert r.status_code == 200
     assert "text/html" in r.headers.get("content-type", "")
+    assert r.headers["x-content-type-options"] == "nosniff"
+    assert r.headers["x-frame-options"] == "DENY"
+    assert "frame-ancestors 'none'" in r.headers["content-security-policy"]
 
 
 def test_web_assets_resolve_from_runtime_working_directory(
@@ -56,6 +67,19 @@ def test_run_endpoint_cannot_bypass_sealed_apply_boundary():
     )
     assert r.status_code == 400
     assert "Propose first" in r.json()["detail"]
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {},
+        {"run_id": "run-1", "incident_id": "incident-1"},
+        {"run_id": "../escape"},
+    ],
+)
+def test_apply_endpoint_requires_one_safe_selector(payload):
+    client = TestClient(create_app())
+    assert client.post("/api/apply", json=payload).status_code == 422
 
 
 def test_live_mode_requires_application_api_key(monkeypatch: pytest.MonkeyPatch):

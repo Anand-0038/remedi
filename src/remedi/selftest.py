@@ -1,4 +1,4 @@
-"""Produce a judge-facing JSON report proving Remedi works end-to-end."""
+"""Produce an offline JSON report verifying Remedi's deterministic core workflow."""
 
 from __future__ import annotations
 
@@ -31,7 +31,7 @@ def run_selftest(settings: Settings | None = None) -> dict[str, Any]:
     def check(name: str, ok: bool, detail: str = "") -> None:
         checks.append({"name": name, "ok": ok, "detail": detail})
 
-    # Keep the committed fixture catalog immutable so every judge gets the same run.
+    # Keep the committed fixture catalog immutable so every verification run is reproducible.
     report_dir = Path(settings.artifacts_dir).parent / "selftest"
     report_dir.mkdir(parents=True, exist_ok=True)
     fixtures = Path(settings.fixtures_dir)
@@ -178,8 +178,13 @@ def run_selftest(settings: Settings | None = None) -> dict[str, Any]:
         "customer_id restored from DataHub upstream schema",
     )
 
-    # Committed samples exist for judges who won't run code
-    sample = Path(settings.artifacts_dir) / "freshness-nyc-taxi" / "PR_DESCRIPTION.md"
+    # Committed samples are immutable references, separate from runtime outputs.
+    sample_root = (
+        Path(settings.artifacts_dir)
+        if "artifacts_dir" in settings.model_fields_set
+        else Path("examples/generated")
+    )
+    sample = sample_root / "freshness-nyc-taxi" / "PR_DESCRIPTION.md"
     check("committed_sample_pr", sample.exists(), str(sample))
 
     ok = all(c["ok"] for c in checks)
@@ -192,7 +197,7 @@ def run_selftest(settings: Settings | None = None) -> dict[str, Any]:
         "passed": sum(1 for c in checks if c["ok"]),
         "failed": sum(1 for c in checks if not c["ok"]),
         "hackathon": "DataHub Agent Hackathon",
-        "judge_hint": "All checks should be ok=true before submission",
+        "summary": "All checks must be ok=true before release",
     }
     out = report_dir / "report.json"
     out.write_text(json.dumps(report, indent=2), encoding="utf-8")

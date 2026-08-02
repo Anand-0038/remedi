@@ -22,6 +22,7 @@
   <link rel="stylesheet" href="/assets/styles.css" />
 </head>
 <body>
+  <a class="skip-link" href="#main-content">Skip to main content</a>
   <header class="command-bar">
     <a class="brand" href="/" aria-label="Remedi home">
       <span class="brand-mark" aria-hidden="true">
@@ -40,7 +41,7 @@
     </div>
   </header>
 
-  <main>
+  <main id="main-content">
     <section class="mission">
       <div class="mission-copy">
         <p class="eyebrow">DataHub context → production action</p>
@@ -61,7 +62,7 @@
             <span class="button-index">02</span>
             Apply sealed plan
           </button>
-          <button id="selftest-btn" type="button" class="quiet">Run judge proof</button>
+          <button id="selftest-btn" type="button" class="quiet">Run offline verification</button>
         </div>
         <p class="approval-note">
           No catalog mutation or on-call notification occurs before approval.
@@ -248,7 +249,7 @@
 
   <footer>
     <span id="product-version">Remedi</span>
-    <span>Replay mode is deterministic and clearly labeled. Live mode fails closed.</span>
+    <span>Live mode uses DataHub. Offline verification is isolated and never presented as live evidence.</span>
     <span>Apache-2.0</span>
   </footer>
 

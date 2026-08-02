@@ -111,10 +111,11 @@ def serve(
     """Start the Remedi demo API + UI."""
     settings = get_settings()
     uvicorn.run(
-        "remedi.api.app:app",
+        "remedi.api.app:create_app",
         host=host or settings.host,
         port=port or settings.port,
         reload=False,
+        factory=True,
     )
 
 
@@ -122,7 +123,7 @@ def serve(
 def selftest(
     json_out: Optional[Path] = typer.Option(None, "--json", help="Write report JSON"),
 ) -> None:
-    """Run judge-facing end-to-end checks and print a report."""
+    """Run deterministic end-to-end checks and print a report."""
     from remedi.selftest import run_selftest
 
     report = run_selftest()

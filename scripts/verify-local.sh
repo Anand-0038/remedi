@@ -12,8 +12,8 @@ echo "==> pytest"
 uv run pytest -q
 
 echo "==> ruff"
-uv run ruff check src tests scripts/browser_smoke.py
-uv run ruff format --check src tests scripts/browser_smoke.py
+uv run ruff check src tests scripts/*.py
+uv run ruff format --check src tests scripts/*.py
 
 echo "==> generated artifact lint + format"
 uv run ruff check examples/generated --select E,F,I
@@ -23,5 +23,5 @@ echo "==> selftest"
 uv run remedi selftest
 
 echo "==> verify-local OK"
-echo "Next: uv run remedi serve  → http://localhost:8790"
-echo "Replay mode verified. Live mode remains fail-closed unless its GMS connection succeeds."
+echo "Offline verification passed. This is not live DataHub evidence."
+echo "Next: set REMEDI_API_KEY, connect DataHub, and run 'make serve-live'."

@@ -52,6 +52,17 @@ function renderIncidents() {
   listEl.innerHTML = "";
   document.getElementById("queue-count").textContent = String(state.incidents.length);
 
+  if (!state.incidents.length) {
+    const empty = document.createElement("li");
+    empty.className = "queue-empty";
+    empty.innerHTML = state.health?.mode === "live"
+      ? "<strong>No failing DataHub assertions.</strong><span>Remedi only opens incidents from assertion runs whose latest result is FAILURE.</span>"
+      : "<strong>No offline incidents.</strong><span>Restore the verification catalog and reload.</span>";
+    listEl.appendChild(empty);
+    runBtn.disabled = true;
+    applyBtn.disabled = true;
+  }
+
   for (const incident of state.incidents) {
     const li = document.createElement("li");
     const btn = document.createElement("button");
@@ -132,7 +143,11 @@ function renderLineageGraph(result) {
   const svg = document.getElementById("lineage-graph");
   const sourceName = result.incident.entity.name.split(".").pop();
   const nodes = [{ id: "src", name: sourceName, type: "source", x: 65, y: 112 }];
-  const downstream = result.blast_radius.downstream || [];
+  const downstream = [
+    ...new Map(
+      (result.blast_radius.downstream || []).map((item) => [item.entity.urn, item])
+    ).values(),
+  ];
   const byHop = {};
 
   for (const item of downstream) {
@@ -141,16 +156,16 @@ function renderLineageGraph(result) {
 
   const hops = Object.keys(byHop).map(Number).sort((a, b) => a - b);
   hops.forEach((hop, hopIndex) => {
-    const group = byHop[hop];
+    const group = byHop[hop].slice(0, 3);
     const x = 205 + hopIndex * (380 / Math.max(hops.length - 1, 1));
     group.forEach((item, itemIndex) => {
-      const spacing = 165 / Math.max(group.length, 1);
+      const spacing = group.length > 1 ? 150 / (group.length - 1) : 0;
       nodes.push({
         id: item.entity.urn,
         name: item.entity.name.split(".").pop(),
         type: item.entity.type,
         x: Math.min(x, 590),
-        y: Math.min(38 + itemIndex * spacing, 192),
+        y: group.length > 1 ? 38 + itemIndex * spacing : 112,
       });
     });
   });
@@ -164,8 +179,12 @@ function renderLineageGraph(result) {
   }
 
   const nodeMap = Object.fromEntries(nodes.map((node) => [node.id, node]));
-  const lines = edges
-    .filter((edge) => nodeMap[edge.from] && nodeMap[edge.to])
+  const visibleEdges = edges.filter((edge) => nodeMap[edge.from] && nodeMap[edge.to]);
+  const displayedTargets = new Set(visibleEdges.map((edge) => edge.to));
+  for (const node of nodes.slice(1)) {
+    if (!displayedTargets.has(node.id)) visibleEdges.push({ from: "src", to: node.id });
+  }
+  const lines = visibleEdges
     .map((edge) => {
       const from = nodeMap[edge.from];
       const to = nodeMap[edge.to];
@@ -355,7 +374,7 @@ async function loadHealth() {
     document.getElementById("report-link").hidden = !fixture;
     const blockers = state.health.gates?.live_blockers || [];
     contextMode.textContent = fixture
-      ? "Replay context · deterministic fixture"
+      ? "Offline verification · DataHub not connected"
       : state.health.gates?.live_gms_connected
         ? "Live DataHub GMS · connected"
         : `Live mode blocked · ${blockers.join(", ") || "provider unavailable"}`;
@@ -365,16 +384,21 @@ async function loadHealth() {
 }
 
 async function loadIncidents() {
-  const [incidentResponse, triageResponse] = await Promise.all([
-    apiFetch("/api/incidents"),
-    apiFetch("/api/triage"),
-  ]);
-  if (!incidentResponse.ok) {
-    throw new Error(`Incident API returned ${incidentResponse.status}`);
+  const triageResponse = await apiFetch("/api/triage");
+  let triage = { items: [] };
+  let incidents = [];
+  if (triageResponse.ok) {
+    triage = await triageResponse.json();
+    incidents = (triage.items || []).map((item) => item.incident);
+  } else {
+    const incidentResponse = await apiFetch("/api/incidents");
+    if (!incidentResponse.ok) {
+      throw new Error(
+        `Triage API returned ${triageResponse.status}; incident API returned ${incidentResponse.status}`
+      );
+    }
+    incidents = await incidentResponse.json();
   }
-
-  const incidents = await incidentResponse.json();
-  const triage = triageResponse.ok ? await triageResponse.json() : { items: [] };
   const ranked = new Map(
     (triage.items || []).map((item) => [
       item.incident.id,
@@ -391,6 +415,9 @@ async function loadIncidents() {
     .map((incident) => ({ ...incident, ...(ranked.get(incident.id) || {}) }))
     .sort((a, b) => (b.risk_score ?? -1) - (a.risk_score ?? -1));
 
+  if (state.selected && !state.incidents.some((incident) => incident.id === state.selected)) {
+    state.selected = null;
+  }
   if (state.incidents.length && !state.selected) {
     state.selected = triage.top_incident_id || state.incidents[0].id;
   }
@@ -442,13 +469,13 @@ async function runRemediation(applyStoredProposal) {
     state.lastResult = result;
     renderResult(result);
     setStatus(result.message, result.success ? "done" : "error");
-    await loadIncidents();
+    if (applyStoredProposal) await loadIncidents();
     outputEl.scrollIntoView({ behavior: "smooth", block: "start" });
   } catch (error) {
     setStatus(`Action stopped — ${error.message}`, "error");
   } finally {
     document.body.classList.remove("agent-running");
-    runBtn.disabled = false;
+    runBtn.disabled = !state.selected;
     selftestBtn.disabled = false;
     if (state.lastResult?.pending_write_back) applyBtn.disabled = false;
   }
@@ -462,8 +489,8 @@ function renderSelftest(report) {
   document.getElementById("metric-artifacts").textContent = String(total);
   document.getElementById("metric-tools").textContent = `${report.elapsed_ms}ms`;
   document.getElementById("receipt-state").textContent = report.ok
-    ? "Judge proof passed"
-    : "Judge proof failed";
+    ? "Offline verification passed"
+    : "Offline verification failed";
   document.getElementById("receipt-digest").textContent = report.report_path || "Selftest report";
   document.getElementById("meta").innerHTML = `
     <span>selftest</span>
@@ -478,7 +505,7 @@ function renderSelftest(report) {
       duration_ms: 0,
     }))
   );
-  document.getElementById("summary").textContent = report.judge_hint || "";
+  document.getElementById("summary").textContent = report.summary || "";
   document.getElementById("steps").innerHTML = (report.checks || [])
     .map(
       (check) =>
@@ -515,7 +542,7 @@ selftestBtn.addEventListener("click", async () => {
   runBtn.disabled = true;
   applyBtn.disabled = true;
   document.body.classList.add("agent-running");
-  setStatus("Running isolated end-to-end judge proof…", "running");
+  setStatus("Running isolated offline verification…", "running");
   try {
     const response = await apiFetch("/api/selftest");
     if (!response.ok) throw new Error(`Selftest returned ${response.status}`);
@@ -523,8 +550,8 @@ selftestBtn.addEventListener("click", async () => {
     renderSelftest(report);
     setStatus(
       report.ok
-        ? `Judge proof passed — ${report.passed}/${report.passed + report.failed} checks`
-        : `Judge proof failed — ${report.failed} check(s) need attention`,
+        ? `Offline verification passed — ${report.passed}/${report.passed + report.failed} checks`
+        : `Offline verification failed — ${report.failed} check(s) need attention`,
       report.ok ? "done" : "error"
     );
     outputEl.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -533,7 +560,7 @@ selftestBtn.addEventListener("click", async () => {
   } finally {
     document.body.classList.remove("agent-running");
     selftestBtn.disabled = false;
-    runBtn.disabled = false;
+    runBtn.disabled = !state.selected;
   }
 });
 

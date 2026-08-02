@@ -27,6 +27,7 @@
 html {
   min-width: 320px;
   background: var(--night);
+  color-scheme: dark;
   scroll-behavior: smooth;
 }
 
@@ -46,6 +47,7 @@ body {
 button,
 a {
   -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 
 a {
@@ -62,6 +64,23 @@ button:focus-visible,
 a:focus-visible {
   outline: 3px solid var(--cyan);
   outline-offset: 3px;
+}
+
+.skip-link {
+  position: fixed;
+  z-index: 100;
+  top: 0.75rem;
+  left: 0.75rem;
+  padding: 0.75rem 1rem;
+  color: var(--night);
+  font-size: 0.875rem;
+  font-weight: 700;
+  background: var(--cyan);
+  transform: translateY(-200%);
+}
+
+.skip-link:focus-visible {
+  transform: translateY(0);
 }
 
 .command-bar {
@@ -117,14 +136,14 @@ a:focus-visible {
 }
 
 .brand strong {
-  font-size: 1rem;
+  font-size: 1.1rem;
   letter-spacing: -0.02em;
 }
 
 .brand small {
   margin-top: 0.12rem;
   color: #8fa6ae;
-  font: 0.65rem/1.2 var(--mono);
+  font: 0.75rem/1.3 var(--mono);
   letter-spacing: 0.09em;
   text-transform: uppercase;
 }
@@ -133,8 +152,8 @@ a:focus-visible {
   display: flex;
   align-items: center;
   gap: 0.7rem;
-  color: #a6bac0;
-  font: 0.7rem var(--mono);
+  color: #b7c8cd;
+  font: 0.8rem/1.4 var(--mono);
 }
 
 .system-state a {
@@ -152,7 +171,7 @@ a:focus-visible {
 }
 
 main {
-  width: min(1480px, calc(100% - 7vw));
+  width: min(1600px, calc(100% - 5vw));
   margin: 0 auto;
 }
 
@@ -168,7 +187,7 @@ main {
 .panel-kicker {
   margin: 0 0 1rem;
   color: var(--cyan);
-  font: 600 0.68rem var(--mono);
+  font: 600 0.8rem var(--mono);
   letter-spacing: 0.14em;
   text-transform: uppercase;
 }
@@ -209,12 +228,12 @@ button {
   align-items: center;
   justify-content: flex-start;
   gap: 0.85rem;
-  min-height: 52px;
+  min-height: 56px;
   border: 1px solid var(--signal);
   border-radius: 3px;
-  padding: 0.75rem 1rem;
+  padding: 0.85rem 1.1rem;
   color: var(--night);
-  font-size: 0.78rem;
+  font-size: 0.9rem;
   font-weight: 700;
   background: var(--signal);
   box-shadow: none;
@@ -239,12 +258,12 @@ button.secondary:hover:not(:disabled) {
 }
 
 button.quiet {
-  min-height: 38px;
+  min-height: 48px;
   border-color: transparent;
   padding: 0.35rem 0;
   color: #a8bbc0;
   background: transparent;
-  font: 500 0.7rem var(--mono);
+  font: 500 0.85rem var(--mono);
 }
 
 button.quiet:hover:not(:disabled) {
@@ -259,7 +278,7 @@ button:disabled {
 
 .button-index {
   color: rgba(8, 19, 30, 0.6);
-  font: 600 0.65rem var(--mono);
+  font: 600 0.75rem var(--mono);
 }
 
 .secondary .button-index {
@@ -268,8 +287,8 @@ button:disabled {
 
 .approval-note {
   margin: 1rem 0 0;
-  color: #7f979f;
-  font: 0.68rem/1.6 var(--mono);
+  color: #a9bcc2;
+  font: 0.8rem/1.6 var(--mono);
 }
 
 .trust-strip {
@@ -300,20 +319,20 @@ button:disabled {
 
 .trust-key {
   margin-bottom: 0.45rem;
-  color: #718b94;
-  font: 0.62rem var(--mono);
+  color: #94abb2;
+  font: 0.75rem var(--mono);
   letter-spacing: 0.1em;
   text-transform: uppercase;
 }
 
 .trust-strip strong {
-  font-size: 0.76rem;
+  font-size: 0.9rem;
   font-weight: 500;
 }
 
 .workbench {
   display: grid;
-  grid-template-columns: minmax(280px, 0.72fr) minmax(0, 2.28fr);
+  grid-template-columns: minmax(350px, 0.82fr) minmax(0, 2.18fr);
   align-items: start;
   margin: clamp(2.2rem, 5vw, 5rem) 0;
   overflow: hidden;
@@ -326,7 +345,7 @@ button:disabled {
   min-width: 0;
   max-height: 820px;
   overflow-y: auto;
-  padding: 1.5rem;
+  padding: 1.75rem;
   color: var(--paper);
   background: var(--night-2);
   border-right: 1px solid var(--line-dark);
@@ -356,9 +375,9 @@ button:disabled {
 
 .panel-note {
   margin: 1rem 0 1.25rem;
-  color: #8399a0;
-  font-size: 0.73rem;
-  line-height: 1.55;
+  color: #a9bbc0;
+  font-size: 0.85rem;
+  line-height: 1.6;
 }
 
 #incident-list {
@@ -370,6 +389,22 @@ button:disabled {
   border-top: 1px solid var(--line-dark);
 }
 
+.queue-empty {
+  display: grid;
+  gap: 0.45rem;
+  padding: 1.25rem;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius-md);
+  color: var(--muted);
+  font-size: 0.92rem;
+  line-height: 1.55;
+}
+
+.queue-empty strong {
+  color: var(--ink);
+  font-size: 1rem;
+}
+
 #incident-list li button {
   display: block;
   width: 100%;
@@ -377,7 +412,7 @@ button:disabled {
   border: 0;
   border-bottom: 1px solid var(--line-dark);
   border-radius: 0;
-  padding: 1rem 0.65rem 1rem 0.95rem;
+  padding: 1.15rem 0.8rem 1.15rem 1rem;
   color: var(--paper);
   text-align: left;
   background: transparent;
@@ -397,7 +432,7 @@ button:disabled {
 .inc-title {
   display: block;
   margin-bottom: 0.55rem;
-  font-size: 0.78rem;
+  font-size: 0.9rem;
   font-weight: 600;
   line-height: 1.4;
 }
@@ -412,9 +447,9 @@ button:disabled {
   display: inline-block;
   border: 1px solid rgba(157, 181, 188, 0.22);
   border-radius: 2px;
-  padding: 0.17rem 0.35rem;
+  padding: 0.25rem 0.45rem;
   color: inherit;
-  font: 500 0.56rem var(--mono);
+  font: 500 0.7rem/1.3 var(--mono);
   letter-spacing: 0.03em;
   text-transform: uppercase;
 }
@@ -471,13 +506,13 @@ button:disabled {
 }
 
 .inc-action {
-  color: #a8bac0;
-  font-size: 0.66rem;
+  color: #c0ced2;
+  font-size: 0.8rem;
 }
 
 .inc-evidence {
-  color: #607880;
-  font: 0.55rem var(--mono);
+  color: #96abb2;
+  font: 0.72rem/1.5 var(--mono);
 }
 
 .evidence-panel {
@@ -500,13 +535,13 @@ button:disabled {
   display: block;
   margin-bottom: 0.35rem;
   color: var(--muted);
-  font: 0.6rem var(--mono);
+  font: 0.72rem var(--mono);
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
 #selected-title {
-  font-size: clamp(0.9rem, 1.3vw, 1.1rem);
+  font-size: clamp(1rem, 1.3vw, 1.2rem);
 }
 
 .selection-risk {
@@ -524,9 +559,9 @@ button:disabled {
 .status {
   margin: 1.25rem clamp(1.3rem, 3vw, 2.3rem) 0;
   border-left: 3px solid var(--muted);
-  padding: 0.85rem 1rem;
+  padding: 1rem 1.1rem;
   color: var(--muted);
-  font: 0.7rem/1.5 var(--mono);
+  font: 0.85rem/1.6 var(--mono);
   background: rgba(96, 115, 122, 0.06);
 }
 
@@ -571,7 +606,7 @@ button:disabled {
 .receipt-label {
   display: block;
   color: var(--muted);
-  font: 0.57rem var(--mono);
+  font: 0.72rem var(--mono);
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -586,7 +621,7 @@ button:disabled {
   display: block;
   margin-top: 0.2rem;
   color: var(--muted);
-  font-size: 0.62rem;
+  font-size: 0.75rem;
 }
 
 .approval-receipt {
@@ -603,13 +638,13 @@ button:disabled {
 .approval-receipt strong {
   margin: 0.75rem 0 0.55rem;
   color: var(--mint);
-  font-size: 0.78rem;
+  font-size: 0.9rem;
 }
 
 .approval-receipt code {
   overflow: hidden;
   color: #98b0b7;
-  font: 0.6rem var(--mono);
+  font: 0.75rem var(--mono);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -624,9 +659,9 @@ button:disabled {
 .meta span {
   border: 1px solid var(--line);
   border-radius: 2px;
-  padding: 0.27rem 0.45rem;
+  padding: 0.35rem 0.55rem;
   color: var(--muted);
-  font: 0.58rem var(--mono);
+  font: 0.72rem/1.35 var(--mono);
 }
 
 .evidence-grid {
@@ -639,7 +674,7 @@ button:disabled {
 .evidence-section {
   min-width: 0;
   border: 1px solid var(--line);
-  padding: 1.1rem;
+  padding: 1.25rem;
   background: rgba(255, 255, 255, 0.56);
 }
 
@@ -654,7 +689,7 @@ button:disabled {
   flex: 0 0 auto;
   padding-top: 0.1rem;
   color: var(--signal);
-  font: 600 0.62rem var(--mono);
+  font: 600 0.75rem var(--mono);
 }
 
 .section-heading h3,
@@ -663,15 +698,15 @@ button:disabled {
 }
 
 .section-heading h3 {
-  font-size: 0.88rem;
+  font-size: 1rem;
   letter-spacing: -0.02em;
 }
 
 .section-heading p {
   margin-top: 0.32rem;
   color: var(--muted);
-  font-size: 0.65rem;
-  line-height: 1.5;
+  font-size: 0.8rem;
+  line-height: 1.55;
 }
 
 .causal-section {
@@ -682,7 +717,7 @@ button:disabled {
 .timeline {
   position: relative;
   display: grid;
-  grid-template-columns: repeat(8, minmax(88px, 1fr));
+  grid-template-columns: repeat(8, minmax(112px, 1fr));
   gap: 0;
   overflow-x: auto;
   margin: 0;
@@ -702,11 +737,11 @@ button:disabled {
 
 .timeline li {
   position: relative;
-  min-width: 100px;
+  min-width: 112px;
   padding: 1.8rem 0.65rem 0 0;
   color: var(--muted);
-  font-size: 0.58rem;
-  line-height: 1.45;
+  font-size: 0.75rem;
+  line-height: 1.5;
 }
 
 .timeline li::before {
@@ -732,14 +767,14 @@ button:disabled {
 .timeline strong {
   margin-bottom: 0.35rem;
   color: var(--ink);
-  font: 600 0.6rem var(--mono);
+  font: 600 0.72rem var(--mono);
   text-transform: uppercase;
 }
 
 .timeline .ms {
   margin-top: 0.35rem;
   color: #8da0a5;
-  font: 0.55rem var(--mono);
+  font: 0.7rem var(--mono);
 }
 
 .graph-frame {
@@ -788,7 +823,7 @@ button:disabled {
 
 .lineage-graph .node-label {
   fill: #38525c;
-  font: 9px var(--mono);
+  font: 12px var(--mono);
 }
 
 .detail-list,
@@ -810,8 +845,8 @@ button:disabled {
   position: relative;
   padding-left: 1rem;
   color: var(--muted);
-  font-size: 0.65rem;
-  line-height: 1.5;
+  font-size: 0.8rem;
+  line-height: 1.6;
 }
 
 .detail-list li::before {
@@ -831,9 +866,9 @@ button:disabled {
 
 .tools li {
   border-bottom: 1px solid var(--line);
-  padding-bottom: 0.45rem;
+  padding-bottom: 0.55rem;
   color: var(--muted);
-  font: 0.61rem/1.5 var(--mono);
+  font: 0.75rem/1.6 var(--mono);
 }
 
 .tools li:last-child {
@@ -863,13 +898,13 @@ button:disabled {
 button.linkish {
   display: block;
   width: 100%;
-  min-height: 0;
+  min-height: 44px;
   overflow: hidden;
   border: 1px solid var(--line);
   border-radius: 2px;
-  padding: 0.58rem;
+  padding: 0.7rem;
   color: #275b69;
-  font: 500 0.6rem var(--mono);
+  font: 500 0.75rem var(--mono);
   text-align: left;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -897,17 +932,17 @@ button.linkish:hover {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  min-height: 38px;
+  min-height: 48px;
   padding: 0.45rem 0.7rem;
   border-bottom: 1px solid var(--line-dark);
   color: #9db2b9;
-  font: 0.6rem var(--mono);
+  font: 0.75rem var(--mono);
 }
 
 button.icon-button {
   display: grid;
-  width: 25px;
-  min-height: 25px;
+  width: 44px;
+  min-height: 44px;
   place-items: center;
   border: 0;
   padding: 0;
@@ -922,7 +957,7 @@ button.icon-button {
   margin: 0;
   padding: 1rem;
   color: #c8d9dd;
-  font: 0.62rem/1.65 var(--mono);
+  font: 0.78rem/1.7 var(--mono);
   white-space: pre;
   tab-size: 2;
 }
@@ -941,7 +976,7 @@ button.icon-button {
 .writeback-grid h4 {
   margin: 0 0 0.65rem;
   color: var(--muted);
-  font: 600 0.58rem var(--mono);
+  font: 600 0.72rem var(--mono);
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -972,7 +1007,7 @@ button.icon-button {
   border: 1px solid var(--line);
   padding: 0.7rem;
   color: #3d5962;
-  font: 0.58rem/1.55 var(--mono);
+  font: 0.72rem/1.6 var(--mono);
   background: #f8faf9;
 }
 
@@ -980,12 +1015,12 @@ footer {
   display: flex;
   justify-content: space-between;
   gap: 1rem;
-  width: min(1480px, calc(100% - 7vw));
+  width: min(1600px, calc(100% - 5vw));
   margin: 0 auto;
   padding: 1.5rem 0 2.2rem;
   border-top: 1px solid var(--line-dark);
-  color: #6f8890;
-  font: 0.6rem/1.5 var(--mono);
+  color: #91a8af;
+  font: 0.75rem/1.55 var(--mono);
 }
 
 body.agent-running .signal-dot {
@@ -1060,7 +1095,7 @@ body.agent-running .lineage-graph .edge {
   }
 
   .workbench {
-    grid-template-columns: minmax(260px, 0.82fr) minmax(0, 2fr);
+    grid-template-columns: minmax(320px, 0.9fr) minmax(0, 2fr);
   }
 
   .proof-overview {
@@ -1101,7 +1136,7 @@ body.agent-running .lineage-graph .edge {
 
   main,
   footer {
-    width: min(100% - 10vw, 1480px);
+    width: min(100% - 10vw, 1600px);
   }
 
   .mission h1 {
@@ -1147,7 +1182,7 @@ body.agent-running .lineage-graph .edge {
   }
 
   .system-state {
-    font-size: 0.58rem;
+    font-size: 0.75rem;
   }
 
   .mission {

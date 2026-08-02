@@ -1,0 +1,4 @@
+interface:
+  display_name: "Remedi DataHub Response"
+  short_description: "Grounded, approval-gated DataHub remediation"
+  default_prompt: "Use $remedi to investigate a failing DataHub assertion, trace impact, and prepare a sealed remediation proposal."

@@ -5,9 +5,11 @@ from urllib.error import URLError
 import pytest
 
 from remedi.agents.coder import CodeGenerationError
+from remedi.agents.lineage import LineageAgent
 from remedi.agents.verifier import GroundednessVerifier
 from remedi.config import Settings
 from remedi.connectors.datahub import FixtureConnector
+from remedi.models.incident import IncidentSeverity, IncidentType
 from remedi.orchestrator import RemediOrchestrator
 from remedi.store import ProposalStore
 
@@ -36,7 +38,7 @@ def _orch(tmp_path: Path) -> RemediOrchestrator:
 
 
 def test_list_includes_ecommerce_and_assertions():
-    orch = RemediOrchestrator()
+    orch = RemediOrchestrator(settings=Settings(remedi_mode="fixture"))
     incidents = orch.list_incidents()
     ids = {i.id for i in incidents}
     assert "freshness-ecommerce-orders" in ids
@@ -77,6 +79,21 @@ def test_direct_apply_is_rejected(tmp_path):
         assert "Direct apply is disabled" in str(exc)
     else:
         raise AssertionError("Direct apply must not bypass the sealed proposal store")
+
+
+def test_failed_provider_refresh_does_not_consume_proposal(tmp_path):
+    orch = _orch(tmp_path)
+    proposal = orch.run("schema-orders-amount", dry_run=True)
+    receipt = orch.store.execution_root / f"{proposal.run_id}.json"
+
+    def fail_refresh(_incident_id: str):
+        raise ConnectionError("provider unavailable before apply")
+
+    orch.detector.get = fail_refresh  # type: ignore[method-assign]
+    with pytest.raises(ConnectionError, match="before apply"):
+        orch.apply_proposal(run_id=proposal.run_id)
+
+    assert not receipt.exists()
 
 
 def test_live_style_proposal_discloses_assertion_rerun_gate(tmp_path: Path):
@@ -300,3 +317,64 @@ def test_verifier_blocks_invented_grounded_in():
     report = GroundednessVerifier().verify(incident, [bad])
     assert report.ok is False
     assert "totally_fake_col" in report.invented_blocked
+
+
+def test_llm_grounding_claims_only_referenced_schema_fields():
+    from remedi.agents.coder import _schema_grounding
+    from remedi.models.incident import SchemaField
+
+    fields = [
+        SchemaField(name="order_id", type="STRING"),
+        SchemaField(name="updated_at", type="TIMESTAMP"),
+    ]
+
+    assert _schema_grounding("SELECT order_id FROM orders", fields) == ["schema:order_id"]
+
+
+def test_verifier_fails_closed_without_schema():
+    from remedi.models.incident import EntityRef, GeneratedArtifact, Incident
+
+    incident = Incident(
+        id="no-schema",
+        title="Schema unavailable",
+        type=IncidentType.DATA_QUALITY,
+        severity=IncidentSeverity.HIGH,
+        entity=EntityRef(urn="urn:li:dataset:no-schema", name="unknown", type="dataset"),
+    )
+    artifact = GeneratedArtifact(
+        path="fix.sql",
+        kind="sql",
+        description="Cannot be proven",
+        content="SELECT mystery_column FROM unknown",
+    )
+
+    report = GroundednessVerifier().verify(incident, [artifact])
+
+    assert report.ok is False
+    assert "cannot be proven" in report.notes[0]
+
+
+def test_lineage_adds_observed_queries_to_codegen_context():
+    from remedi.models.incident import EntityRef, Incident
+
+    class QueryConnector:
+        def get_lineage_downstream(self, _urn: str, max_hops: int = 3) -> list[dict]:
+            return []
+
+        def get_lineage_upstream(self, _urn: str, max_hops: int = 3) -> list[dict]:
+            return []
+
+        def get_dataset_queries(self, _urn: str) -> list[str]:
+            return ["SELECT order_id FROM orders"]
+
+    incident = Incident(
+        id="queries",
+        title="Observed query context",
+        type=IncidentType.DATA_QUALITY,
+        severity=IncidentSeverity.HIGH,
+        entity=EntityRef(urn="urn:li:dataset:orders", name="orders", type="dataset"),
+    )
+
+    LineageAgent(QueryConnector()).analyze(incident)  # type: ignore[arg-type]
+
+    assert incident.sample_queries == ["SELECT order_id FROM orders"]

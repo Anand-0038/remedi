@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+
 from remedi.connectors.datahub import DataHubConnector
 from remedi.models.incident import (
     BlastRadius,
@@ -12,6 +14,8 @@ from remedi.models.incident import (
 
 class WriterAgent:
     """Writes remediation knowledge back into DataHub so the next agent inherits it."""
+
+    _DESCRIPTION_MARKER = "---\n**Remedi approved remediation**"
 
     def __init__(self, connector: DataHubConnector) -> None:
         self.connector = connector
@@ -43,6 +47,10 @@ class WriterAgent:
         elif incident.type.value == "lineage_break":
             tags.append("lineage-repair")
 
+        owners_to_add = [
+            owner for owner in blast.owner_notify if owner not in incident.entity.owners
+        ][:5]
+
         if dry_run:
             resolution_action = (
                 f"await_assertion_rerun:{incident.id}"
@@ -52,16 +60,24 @@ class WriterAgent:
             write.results = [
                 WriteBackAction(action=f"add_tags:{','.join(tags)}", status="dry_run"),
                 WriteBackAction(action="update_description", status="dry_run"),
-                WriteBackAction(
-                    action=f"add_owners:{min(5, len(blast.owner_notify))}", status="dry_run"
-                ),
-                WriteBackAction(
-                    action="add_glossary_terms:RemediationPendingValidation",
-                    status="dry_run",
-                ),
-                WriteBackAction(action="save_document", status="dry_run"),
-                WriteBackAction(action=resolution_action, status="dry_run"),
             ]
+            if owners_to_add:
+                write.results.append(
+                    WriteBackAction(
+                        action=f"add_owners:{len(owners_to_add)}",
+                        status="dry_run",
+                    )
+                )
+            write.results.extend(
+                [
+                    WriteBackAction(
+                        action="add_glossary_terms:RemediationPendingValidation",
+                        status="dry_run",
+                    ),
+                    WriteBackAction(action="save_document", status="dry_run"),
+                    WriteBackAction(action=resolution_action, status="dry_run"),
+                ]
+            )
             write.actions = [r.action for r in write.results]
             write.after = before
             return write
@@ -69,9 +85,15 @@ class WriterAgent:
         results: list[WriteBackAction] = []
         results.append(self.connector.add_tags(incident.entity.urn, tags))
 
+        existing_description = incident.entity.description or incident.entity.name
+        base_description = re.split(
+            rf"\n\n{re.escape(self._DESCRIPTION_MARKER)}",
+            existing_description,
+            maxsplit=1,
+        )[0].rstrip()
         desc = (
-            f"{incident.entity.description or incident.entity.name}\n\n"
-            f"---\n**Remedi approved remediation** ({incident.id}): {plan.summary}\n"
+            f"{base_description}\n\n"
+            f"{self._DESCRIPTION_MARKER} ({incident.id}): {plan.summary}\n"
             f"Root cause: {plan.root_cause}\n"
             f"Downstream impacted: {blast.total_impacted} "
             f"(datasets={blast.dataset_count}, dashboards={blast.dashboard_count}, "
@@ -80,8 +102,8 @@ class WriterAgent:
         )
         results.append(self.connector.update_description(incident.entity.urn, desc))
 
-        if blast.owner_notify:
-            results.append(self.connector.add_owners(incident.entity.urn, blast.owner_notify[:5]))
+        if owners_to_add:
+            results.append(self.connector.add_owners(incident.entity.urn, owners_to_add))
 
         glossary = ["RemediationPendingValidation"]
         if incident.type.value == "freshness":
@@ -110,6 +132,28 @@ class WriterAgent:
                 "owners": list(after_entity.owners),
                 "description": after_entity.description,
             }
+            missing_tags = [
+                tag
+                for tag in tags
+                if not any(self._metadata_name(existing) == tag for existing in after_entity.tags)
+            ]
+            missing_owners = [owner for owner in owners_to_add if owner not in after_entity.owners]
+            description_verified = self._DESCRIPTION_MARKER in (after_entity.description or "")
+            if missing_tags or missing_owners or not description_verified:
+                problems = []
+                if missing_tags:
+                    problems.append(f"missing tags: {', '.join(missing_tags)}")
+                if missing_owners:
+                    problems.append(f"missing owners: {', '.join(missing_owners)}")
+                if not description_verified:
+                    problems.append("description marker missing")
+                verification = WriteBackAction(
+                    action="verify_write_back",
+                    status="error",
+                    detail="; ".join(problems),
+                )
+                write.results.append(verification)
+                write.actions.append(verification.action)
         except Exception as exc:  # noqa: BLE001
             write.after = {}
             verification = WriteBackAction(
@@ -121,6 +165,10 @@ class WriterAgent:
             write.actions.append(verification.action)
 
         return write
+
+    @staticmethod
+    def _metadata_name(value: str) -> str:
+        return value.rsplit(":", 1)[-1]
 
     def _document(self, incident: Incident, blast: BlastRadius, plan: RemediationPlan) -> str:
         lines = [

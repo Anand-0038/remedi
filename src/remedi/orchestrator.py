@@ -183,7 +183,7 @@ class RemediOrchestrator:
             ),
             timeline=timeline,
             tools_used=self.audit.calls,
-            pending_write_back=dry_run,
+            pending_write_back=dry_run and grounded.ok,
             groundedness=grounded.as_dict(),
             actions_taken=actions_taken,
         )
@@ -210,12 +210,12 @@ class RemediOrchestrator:
                 f"Proposal {proposal.run_id} is ungrounded and cannot be applied; "
                 "generate a new schema-grounded proposal"
             )
+        # Refresh provider state before claiming the single-use execution. A failed
+        # read must not strand a valid proposal in an unrecoverable "applying" state.
+        incident = self.detector.get(proposal.incident.id)
+        proposal.incident = incident
         # Atomic create makes the approved run single-use even under concurrent requests.
         self.store.claim_execution(proposal)
-
-        incident = self.detector.get(proposal.incident.id)
-        # refresh entity tags for before/after
-        proposal.incident = incident
         try:
             write_back = self.writer.apply(
                 proposal.incident,

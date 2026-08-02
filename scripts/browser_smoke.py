@@ -1,4 +1,4 @@
-"""Optional judge-flow smoke test for a running Remedi server."""
+"""Offline browser regression test for a running Remedi server."""
 
 from pathlib import Path
 import shutil
@@ -43,12 +43,12 @@ def main() -> None:
 
         assert "Fix the incident" in desktop.locator("h1").inner_text()
         assert desktop.locator("#incident-list button").count() >= 5
-        assert "Replay context" in desktop.locator("#context-mode").inner_text()
+        assert "Offline verification" in desktop.locator("#context-mode").inner_text()
         health = desktop.request.get(f"{BASE_URL}/api/health").json()
         assert desktop.locator("#product-version").inner_text() == f"Remedi v{health['version']}"
         desktop.screenshot(path=SCREENSHOT_DIR / "01-queue.png", full_page=True)
 
-        # Keep the judge proof deterministic even when earlier local Applies changed
+        # Keep verification deterministic even when earlier local Applies changed
         # context-risk ordering in the ignored fixture state.
         incident = desktop.locator('[data-incident-id="freshness-nyc-taxi"]')
         assert incident.count() == 1
@@ -70,8 +70,8 @@ def main() -> None:
         assert desktop.locator("#receipt-state").inner_text() == "Applied · integrity verified"
         desktop.screenshot(path=SCREENSHOT_DIR / "03-applied.png", full_page=True)
 
-        desktop.get_by_role("button", name="Run judge proof").click()
-        wait_for_status(desktop, "Judge proof passed")
+        desktop.get_by_role("button", name="Run offline verification").click()
+        wait_for_status(desktop, "Offline verification passed")
         assert "pass" in desktop.locator("#meta").inner_text().lower()
 
         mobile = browser.new_page(viewport={"width": 390, "height": 844})

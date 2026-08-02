@@ -67,6 +67,15 @@ def _extract_columns_from_queries(queries: list[str], known: list[str]) -> list[
     return found
 
 
+def _schema_grounding(content: str, fields: list[SchemaField]) -> list[str]:
+    """Record only schema fields that are actually referenced by generated content."""
+    return [
+        f"schema:{field.name}"
+        for field in fields
+        if re.search(rf"\b{re.escape(field.name)}\b", content, re.IGNORECASE)
+    ]
+
+
 def _python_string_list(values: list[str]) -> str:
     """Render a deterministic string list that is already Ruff-formatted."""
     if len(values) <= 1:
@@ -1017,16 +1026,22 @@ with DAG(
             data = json.loads(resp.read().decode())
         content = data["choices"][0]["message"]["content"]
         parsed = json.loads(content)
-        artifacts = [
-            GeneratedArtifact(
-                path=a["path"],
-                kind=a.get("kind", "sql"),
-                description=a.get("description", "LLM-generated artifact"),
-                content=a["content"],
-                grounded_in=["llm", f"urn:{incident.entity.urn}", "schema:datahub"],
+        artifacts = []
+        for artifact in parsed.get("artifacts", []):
+            artifact_content = artifact["content"]
+            artifacts.append(
+                GeneratedArtifact(
+                    path=artifact["path"],
+                    kind=artifact.get("kind", "sql"),
+                    description=artifact.get("description", "LLM-generated artifact"),
+                    content=artifact_content,
+                    grounded_in=[
+                        "llm",
+                        f"urn:{incident.entity.urn}",
+                        *_schema_grounding(artifact_content, incident.entity.schema_fields),
+                    ],
+                )
             )
-            for a in parsed.get("artifacts", [])
-        ]
         if not artifacts:
             return None
         return RemediationPlan(

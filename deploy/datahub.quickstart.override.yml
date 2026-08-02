@@ -1,0 +1,11 @@
+networks:
+  default:
+    name: remedi_liveproof_network
+
+volumes:
+  broker:
+    name: remedi_liveproof_v160_broker
+  mysqldata:
+    name: remedi_liveproof_v160_mysqldata
+  osdata:
+    name: remedi_liveproof_v160_osdata

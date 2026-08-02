@@ -203,8 +203,8 @@ class GroundednessVerifier:
         hard_unknown = sorted(u for u in unknown if u.lower() not in schema)
         ok = len(invented_blocked) == 0 and len(hard_unknown) == 0
         if not schema_cols:
-            notes.append("No schema fields on entity — skipped column proof")
-            ok = True
+            notes.append("No schema fields on entity — column grounding cannot be proven")
+            ok = False
         elif ok and referenced:
             notes.append(f"Referenced schema columns: {', '.join(sorted(referenced))}")
         elif ok:

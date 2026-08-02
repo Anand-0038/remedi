@@ -4,10 +4,17 @@ services:
     ports:
       - "8790:8790"
     environment:
-      REMEDI_MODE: fixture
+      REMEDI_MODE: ${REMEDI_MODE:-live}
+      REMEDI_API_KEY: ${REMEDI_API_KEY:?Set REMEDI_API_KEY before starting Remedi}
+      DATAHUB_GMS_URL: ${DATAHUB_GMS_URL:-http://host.docker.internal:8080}
+      DATAHUB_TOKEN: ${DATAHUB_TOKEN:-}
       HOST: 0.0.0.0
       PORT: 8790
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
-      - ./examples:/app/examples
+      - ./examples:/app/examples:ro
+      - remedi-runtime:/app/.remedi
+
+volumes:
+  remedi-runtime:

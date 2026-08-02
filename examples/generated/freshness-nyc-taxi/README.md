@@ -4,7 +4,7 @@ Merge-ready outputs + PR package from DataHub schemas, queries, and lineage.
 
 Start with `PR_DESCRIPTION.md`, then review code files.
 
-- `mart_yellow_trips_daily.sql` — Incremental mart using schema columns pickup_date/pickup_datetime/trip_distance — grounded in `schema:pickup_date, schema:pickup_datetime, urn:urn:li:dataset:(urn:li:dataPlatform:snowflake,analytics.nyc_taxi.yellow_trips,PROD), schema:trip_distance, queries:datahub`
+- `mart_yellow_trips_daily.sql` — Incremental mart using schema columns pickup_date/pickup_datetime/fare_amount — grounded in `schema:pickup_date, schema:pickup_datetime, urn:urn:li:dataset:(urn:li:dataPlatform:snowflake,analytics.nyc_taxi.yellow_trips,PROD), schema:fare_amount, queries:datahub`
 - `schema.yml` — Fail-closed freshness test on freshness_status — grounded in `schema:pickup_date, sla_hours:6`
 - `airflow_nyc_taxi_daily_remedi_guard.py` — Fail-closed source freshness gate + dbt run/test; retains DataHub owner URNs in evidence — grounded in `owners:5, pipeline:airflow.nyc_taxi_daily`
 - `feature_freshness_guard.py` — Skip/fail training when features stale — protects demand_forecast_v3 — grounded in `ml_models:1, schema:pickup_date, schema:pickup_datetime, urn:urn:li:mlModel:(urn:li:dataPlatform:sagemaker,demand_forecast_v3,PROD)`

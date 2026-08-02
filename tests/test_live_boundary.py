@@ -7,6 +7,7 @@ import pytest
 from remedi.config import Settings
 from remedi.connectors.audit import ToolAudit
 from remedi.connectors.datahub import LiveConnector, LiveIntegrationError
+from remedi.models.incident import IncidentSeverity, IncidentType
 
 
 def _live_connector(client: object) -> LiveConnector:
@@ -15,6 +16,15 @@ def _live_connector(client: object) -> LiveConnector:
     connector.audit = ToolAudit()
     connector._client = client
     return connector
+
+
+def test_live_mode_isolates_runtime_artifacts_from_committed_samples():
+    assert Settings(remedi_mode="live").artifacts_dir.as_posix() == ".remedi/generated"
+    assert Settings(remedi_mode="fixture").artifacts_dir.as_posix() == ".remedi/generated"
+    assert (
+        Settings(remedi_mode="live", artifacts_dir="custom-output").artifacts_dir.as_posix()
+        == "custom-output"
+    )
 
 
 def test_live_entity_failure_never_returns_fixture_data():
@@ -48,6 +58,21 @@ def test_live_incident_adapter_returns_empty_when_no_assertions_fail(
     connector = _live_connector(SimpleNamespace(_graph=object()))
 
     assert connector.list_incidents() == []
+
+
+def test_custom_assertion_preserves_freshness_semantics():
+    assertion = {
+        "type": "CUSTOM",
+        "description": "Order freshness guard failed",
+        "definition": {"logic": "updated_at must stay within the watermark"},
+    }
+
+    assert LiveConnector._incident_type(assertion) is IncidentType.FRESHNESS
+
+
+def test_live_assertion_preserves_reported_severity():
+    assert LiveConnector._incident_severity({"severity": "MEDIUM"}) is IncidentSeverity.MEDIUM
+    assert LiveConnector._incident_severity({"severity": "unexpected"}) is IncidentSeverity.HIGH
 
 
 def test_live_assertion_discovery_maps_assertee_without_scanning_datasets(
@@ -229,6 +254,16 @@ def test_live_tag_write_uses_agent_context_signature(monkeypatch: pytest.MonkeyP
     assert captured["entity_urns"] == ["urn:li:dataset:test"]
     assert captured["tag_urns"] == ["urn:li:tag:remedi-resolved"]
     assert "upserted" in captured
+
+
+def test_live_tag_write_rejects_false_provider_result(monkeypatch: pytest.MonkeyPatch):
+    tags_module = ModuleType("datahub_agent_context.mcp_tools.tags")
+    setattr(tags_module, "add_tags", lambda **_kwargs: {"success": False, "message": "denied"})
+    monkeypatch.setitem(sys.modules, "datahub_agent_context.mcp_tools.tags", tags_module)
+    connector = _live_connector(SimpleNamespace(entities=SimpleNamespace(upsert=lambda _tag: None)))
+
+    with pytest.raises(LiveIntegrationError, match="denied"):
+        connector.add_tags("urn:li:dataset:test", ["remedi-applied"])
 
 
 def test_live_document_false_response_is_an_error(monkeypatch: pytest.MonkeyPatch):

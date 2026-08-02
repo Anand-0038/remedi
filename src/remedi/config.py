@@ -10,7 +10,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
-    remedi_mode: Literal["fixture", "live"] = "fixture"
+    remedi_mode: Literal["fixture", "live"] = "live"
     remedi_api_key: str = ""
     datahub_gms_url: str = "http://localhost:8080"
     datahub_token: str = ""
@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     remedi_ops_webhook_kind: Literal["generic", "slack"] = "generic"
     host: str = "0.0.0.0"
     port: int = 8790
-    artifacts_dir: Path = Path("examples/generated")
+    artifacts_dir: Path = Path(".remedi/generated")
     fixtures_dir: Path = Path("examples/fixtures")
 
 

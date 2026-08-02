@@ -93,10 +93,16 @@ class LiveIntegrationError(RuntimeError):
 class FixtureConnector(DataHubConnector):
     """Offline catalog slice — MCP-shaped tools with audit trail."""
 
-    def __init__(self, fixtures_dir: Path, audit: ToolAudit | None = None) -> None:
+    def __init__(
+        self,
+        fixtures_dir: Path,
+        audit: ToolAudit | None = None,
+        state_dir: Path | None = None,
+    ) -> None:
         self.fixtures_dir = fixtures_dir
         self.audit = audit or ToolAudit()
-        self._state_path = fixtures_dir / "catalog.state.json"
+        self.state_dir = state_dir or fixtures_dir
+        self._state_path = self.state_dir / "catalog.state.json"
         self._catalog = self._load_catalog()
         self._write_log: list[dict[str, Any]] = []
 
@@ -117,6 +123,7 @@ class FixtureConnector(DataHubConnector):
         return catalog
 
     def _persist(self) -> None:
+        self.state_dir.mkdir(parents=True, exist_ok=True)
         entities_patch: dict[str, Any] = {}
         for urn, ent in self._catalog["entities"].items():
             entities_patch[urn] = {
@@ -128,7 +135,7 @@ class FixtureConnector(DataHubConnector):
         resolved = [i["id"] for i in self._catalog["incidents"] if i.get("status") == "resolved"]
         payload = {"entities": entities_patch, "resolved_incidents": resolved}
         self._state_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
-        log_path = self.fixtures_dir / "writeback_log.json"
+        log_path = self.state_dir / "writeback_log.json"
         log_path.write_text(json.dumps(self._write_log, indent=2), encoding="utf-8")
 
     def _entity_from_dict(self, raw: dict[str, Any]) -> EntityRef:
@@ -522,10 +529,7 @@ class LiveConnector(DataHubConnector):
             entity_urn = str(assertion["entity_urn"])
             entity = self.get_entity(entity_urn)
             assertion_type = str(assertion.get("type") or "CUSTOM").upper()
-            incident_type = {
-                "FRESHNESS": IncidentType.FRESHNESS,
-                "DATA_SCHEMA": IncidentType.SCHEMA_DRIFT,
-            }.get(assertion_type, IncidentType.DATA_QUALITY)
+            incident_type = self._incident_type(assertion)
             assertion_urn = str(assertion["urn"])
             incident_id = f"assertion-{hashlib.sha256(assertion_urn.encode()).hexdigest()[:16]}"
             description = str(assertion.get("description") or "").strip()
@@ -533,7 +537,7 @@ class LiveConnector(DataHubConnector):
                 id=incident_id,
                 title=description or f"Failing {assertion_type.lower()} assertion on {entity.name}",
                 type=incident_type,
-                severity=IncidentSeverity.HIGH,
+                severity=self._incident_severity(assertion),
                 entity=entity,
                 details={
                     "assertion_urn": assertion_urn,
@@ -544,6 +548,38 @@ class LiveConnector(DataHubConnector):
             incidents.append(incident)
         self._incidents = {incident.id: incident for incident in incidents}
         return incidents
+
+    @staticmethod
+    def _incident_severity(assertion: dict[str, Any]) -> IncidentSeverity:
+        value = str(assertion.get("severity") or "HIGH").lower()
+        try:
+            return IncidentSeverity(value)
+        except ValueError:
+            return IncidentSeverity.HIGH
+
+    @staticmethod
+    def _incident_type(assertion: dict[str, Any]) -> IncidentType:
+        assertion_type = str(assertion.get("type") or "CUSTOM").upper()
+        if assertion_type == "FRESHNESS":
+            return IncidentType.FRESHNESS
+        if assertion_type == "DATA_SCHEMA":
+            return IncidentType.SCHEMA_DRIFT
+
+        # DataHub OSS custom assertions carry their monitor semantics in the
+        # description / logic. Preserve those semantics so a custom freshness
+        # monitor receives a freshness repair instead of a generic DQ query.
+        definition = assertion.get("definition") or {}
+        context = " ".join(
+            [
+                str(assertion.get("description") or ""),
+                str(definition.get("logic") or ""),
+            ]
+        ).lower()
+        if any(token in context for token in ("freshness", "stale", "watermark")):
+            return IncidentType.FRESHNESS
+        if any(token in context for token in ("schema drift", "schema compatibility")):
+            return IncidentType.SCHEMA_DRIFT
+        return IncidentType.DATA_QUALITY
 
     def list_failing_assertions(self) -> list[dict[str, Any]]:
         assert self._client is not None
@@ -585,6 +621,7 @@ class LiveConnector(DataHubConnector):
                                     "externalUrl": info.get("externalUrl"),
                                     "definition": self._assertion_definition(info),
                                     "entity_urn": entity_urn,
+                                    "severity": latest_result.get("severity"),
                                 }
                             )
                     start += len(results)
@@ -846,7 +883,8 @@ class LiveConnector(DataHubConnector):
                 if graph is None or not graph.exists(tag_urns[-1]):
                     self._client.entities.upsert(tag_entity)
             with DataHubContext(self._client):
-                mcp_add_tags(tag_urns=tag_urns, entity_urns=[urn])
+                response = mcp_add_tags(tag_urns=tag_urns, entity_urns=[urn])
+            self._require_mutation_success(response, "add_tags")
             self.audit.record(
                 "add_tags", args={"urn": urn, "tags": tags}, status="ok", detail="live MCP"
             )
@@ -869,11 +907,12 @@ class LiveConnector(DataHubConnector):
 
             assert self._client is not None
             with DataHubContext(self._client):
-                mcp_upd(
+                response = mcp_upd(
                     entity_urn=urn,
                     operation="replace",
                     description=description,
                 )
+            self._require_mutation_success(response, "update_description")
             self.audit.record(
                 "update_description", args={"urn": urn}, status="ok", detail="live MCP"
             )
@@ -896,11 +935,12 @@ class LiveConnector(DataHubConnector):
 
             assert self._client is not None
             with DataHubContext(self._client):
-                mcp_owners(
+                response = mcp_owners(
                     owner_urns=owners,
                     entity_urns=[urn],
                     ownership_type=OwnershipType.TECHNICAL_OWNER,
                 )
+            self._require_mutation_success(response, "add_owners")
             self.audit.record("add_owners", args={"urn": urn}, status="ok", detail="live MCP")
             return WriteBackAction(
                 action=f"add_owners:{len(owners)}", status="ok", detail="live MCP"
@@ -930,7 +970,8 @@ class LiveConnector(DataHubConnector):
                 if graph is None or not graph.exists(term_urns[-1]):
                     self._client.entities.upsert(term_entity)
             with DataHubContext(self._client):
-                mcp_terms(term_urns=term_urns, entity_urns=[urn])
+                response = mcp_terms(term_urns=term_urns, entity_urns=[urn])
+            self._require_mutation_success(response, "add_glossary_terms")
             self.audit.record(
                 "add_glossary_terms",
                 args={"urn": urn, "terms": terms},
@@ -952,6 +993,12 @@ class LiveConnector(DataHubConnector):
             raise LiveIntegrationError(
                 f"DataHub add_glossary_terms failed for {urn}: {exc}"
             ) from exc
+
+    @staticmethod
+    def _require_mutation_success(response: Any, operation: str) -> None:
+        if response is False or (isinstance(response, dict) and response.get("success") is False):
+            detail = response.get("message") if isinstance(response, dict) else "returned false"
+            raise RuntimeError(f"{operation} was rejected by DataHub: {detail}")
 
     def save_document(self, title: str, body: str, related_urns: list[str]) -> WriteBackAction:
         try:
@@ -1004,4 +1051,8 @@ def build_connector(
     audit = audit or ToolAudit()
     if settings.remedi_mode == "live":
         return LiveConnector(settings, audit=audit)
-    return FixtureConnector(settings.fixtures_dir, audit=audit)
+    return FixtureConnector(
+        settings.fixtures_dir,
+        audit=audit,
+        state_dir=Path(settings.artifacts_dir).parent / "fixture",
+    )

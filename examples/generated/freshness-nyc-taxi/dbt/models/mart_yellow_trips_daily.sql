@@ -17,7 +17,7 @@ WITH source AS (
   SELECT
     pickup_date,
     COUNT(*) AS row_count,
-    SUM(trip_distance) AS metric_sum,
+    SUM(fare_amount) AS metric_sum,
     MAX(pickup_datetime) AS last_event
   FROM {{ source('nyc_taxi', 'yellow_trips') }}
   WHERE pickup_date >= DATEADD('day', -7, CURRENT_DATE)
