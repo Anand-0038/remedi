@@ -1,0 +1,16 @@
+version: 2
+models:
+  - name: mart_raw_orders_daily
+    description: >
+      Daily mart with Remedi freshness guard for ecommerce.raw_orders.
+      Partition key `order_date` and watermark `updated_at` taken from DataHub schema.
+    columns:
+      - name: event_date
+        tests: [not_null, unique]
+      - name: freshness_status
+        tests:
+          - accepted_values:
+              values: ['OK']
+              config:
+                severity: error
+                where: "event_date = CURRENT_DATE - 1"

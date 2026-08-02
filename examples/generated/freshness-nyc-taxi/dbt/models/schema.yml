@@ -1,0 +1,16 @@
+version: 2
+models:
+  - name: mart_yellow_trips_daily
+    description: >
+      Daily mart with Remedi freshness guard for analytics.nyc_taxi.yellow_trips.
+      Partition key `pickup_date` and watermark `pickup_datetime` taken from DataHub schema.
+    columns:
+      - name: event_date
+        tests: [not_null, unique]
+      - name: freshness_status
+        tests:
+          - accepted_values:
+              values: ['OK']
+              config:
+                severity: error
+                where: "event_date = CURRENT_DATE - 1"

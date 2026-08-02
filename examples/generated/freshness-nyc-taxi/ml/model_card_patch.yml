@@ -1,0 +1,7 @@
+# Model card patch — Remedi incident freshness-nyc-taxi
+models:
+  - name: demand_forecast_v3
+    owners: ['urn:li:corpuser:ml-platform']
+    upstream_feature_urn: urn:li:dataset:(urn:li:dataPlatform:snowflake,analytics.nyc_taxi.yellow_trips,PROD)
+    freshness_sla_hours: 6
+    remedi_guard: ml/feature_freshness_guard.py

@@ -1,0 +1,11 @@
+version: 2
+models:
+  - name: vitals_clean
+    description: Fail-closed clean view for healthcare.vitals; column `heart_rate` from DataHub schema.
+    columns:
+      - name: heart_rate
+        tests:
+          - not_null:
+              config:
+                severity: error
+                where: "measured_at > CURRENT_TIMESTAMP - INTERVAL '1 day'"

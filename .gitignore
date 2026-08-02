@@ -1,0 +1,26 @@
+# Remedi
+.env
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+dist/
+build/
+*.egg-info/
+examples/fixtures/writeback_log.json
+examples/fixtures/catalog.state.json
+examples/notifications/outbox.json
+examples/proposals/
+examples/selftest/
+.DS_Store
+.idea/
+.vscode/
+
+# Ignore all markdown files except README files
+*.md
+!README.md
+!readme.md
+!**/README.md
+!**/readme.md

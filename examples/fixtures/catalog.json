@@ -1,0 +1,765 @@
+{
+  "incidents": [
+    {
+      "id": "freshness-nyc-taxi",
+      "title": "NYC Taxi yellow trips freshness SLA breached",
+      "type": "freshness",
+      "severity": "high",
+      "entity_urn": "urn:li:dataset:(urn:li:dataPlatform:snowflake,analytics.nyc_taxi.yellow_trips,PROD)",
+      "details": {
+        "sla_hours": 6,
+        "last_success_hours_ago": 29,
+        "pipeline": "airflow.nyc_taxi_daily",
+        "expected_schedule": "0 */6 * * *",
+        "failure_hint": "stage_2 extract job skipped after upstream S3 partition missing; sensor timeout not alerting owners"
+      },
+      "sample_queries": [
+        "SELECT COUNT(*) FROM analytics.nyc_taxi.yellow_trips WHERE pickup_date = CURRENT_DATE - 1",
+        "SELECT MAX(pickup_datetime) AS last_trip FROM analytics.nyc_taxi.yellow_trips"
+      ]
+    },
+    {
+      "id": "dq-healthcare-vitals",
+      "title": "Healthcare vitals null-rate spike on heart_rate",
+      "type": "data_quality",
+      "severity": "critical",
+      "entity_urn": "urn:li:dataset:(urn:li:dataPlatform:postgres,healthcare.vitals,PROD)",
+      "details": {
+        "assertion": "heart_rate_not_null",
+        "null_rate": 0.18,
+        "threshold": 0.02,
+        "rows_affected": 9900
+      },
+      "sample_queries": [
+        "SELECT COUNT(*) FILTER (WHERE heart_rate IS NULL)::float / COUNT(*) FROM healthcare.vitals WHERE measured_at > NOW() - INTERVAL '1 day'"
+      ]
+    },
+    {
+      "id": "schema-orders-amount",
+      "title": "Retail orders.amount type widened without downstream notice",
+      "type": "schema_drift",
+      "severity": "medium",
+      "entity_urn": "urn:li:dataset:(urn:li:dataPlatform:snowflake,retail.orders,PROD)",
+      "details": {
+        "column": "amount",
+        "before": "NUMBER(10,2)",
+        "after": "NUMBER(18,4)",
+        "breaking_for": [
+          "looker.finance_gmv",
+          "dbt.mart_daily_revenue"
+        ]
+      },
+      "sample_queries": [
+        "SELECT amount::NUMBER(10,2) FROM retail.orders LIMIT 10"
+      ]
+    },
+    {
+      "id": "lineage-break-customer-dim",
+      "title": "Broken lineage: orders \u2192 dim_customer join key missing",
+      "type": "lineage_break",
+      "severity": "high",
+      "entity_urn": "urn:li:dataset:(urn:li:dataPlatform:dbt,retail.dim_customer,PROD)",
+      "details": {
+        "broken_edge": {
+          "upstream": "urn:li:dataset:(urn:li:dataPlatform:snowflake,retail.customers,PROD)",
+          "downstream": "retail.fct_orders_enriched",
+          "missing_column": "customer_id"
+        },
+        "failure_hint": "dim_customer lost customer_id in last dbt refactor; fct_orders_enriched join returns nulls and lineage edge dropped"
+      },
+      "sample_queries": [
+        "SELECT o.order_id, c.customer_id FROM retail.orders o LEFT JOIN retail.dim_customer c ON o.customer_id = c.customer_id"
+      ]
+    },
+    {
+      "id": "freshness-ecommerce-orders",
+      "title": "Ecommerce Snowflake\u2192dbt\u2192Looker freshness break (showcase)",
+      "type": "freshness",
+      "severity": "high",
+      "entity_urn": "urn:li:dataset:(urn:li:dataPlatform:snowflake,ecommerce.raw_orders,PROD)",
+      "details": {
+        "sla_hours": 4,
+        "last_success_hours_ago": 18,
+        "pipeline": "airflow.ecommerce_orders_hourly",
+        "failure_hint": "Kafka\u2192Snowflake land delayed; Looker GMV tile stale across platforms"
+      },
+      "sample_queries": [
+        "SELECT order_date, SUM(gmv) FROM ecommerce.raw_orders GROUP BY 1 ORDER BY 1 DESC LIMIT 7"
+      ]
+    }
+  ],
+  "entities": {
+    "urn:li:dataset:(urn:li:dataPlatform:snowflake,analytics.nyc_taxi.yellow_trips,PROD)": {
+      "urn": "urn:li:dataset:(urn:li:dataPlatform:snowflake,analytics.nyc_taxi.yellow_trips,PROD)",
+      "name": "analytics.nyc_taxi.yellow_trips",
+      "type": "dataset",
+      "platform": "snowflake",
+      "owners": [
+        "urn:li:corpuser:taxi-platform",
+        "urn:li:corpuser:data-oncall"
+      ],
+      "tags": [
+        "domain:mobility",
+        "tier:gold"
+      ],
+      "description": "NYC Yellow Taxi trip facts \u2014 3-stage pipeline with planted freshness issues for remedi demos.",
+      "schema_fields": [
+        {
+          "name": "pickup_datetime",
+          "type": "TIMESTAMP",
+          "description": "Trip pickup timestamp",
+          "nullable": false
+        },
+        {
+          "name": "dropoff_datetime",
+          "type": "TIMESTAMP",
+          "description": "Trip dropoff timestamp",
+          "nullable": false
+        },
+        {
+          "name": "passenger_count",
+          "type": "NUMBER",
+          "nullable": true
+        },
+        {
+          "name": "trip_distance",
+          "type": "FLOAT",
+          "nullable": true
+        },
+        {
+          "name": "fare_amount",
+          "type": "FLOAT",
+          "nullable": true
+        },
+        {
+          "name": "pickup_date",
+          "type": "DATE",
+          "description": "Partition key",
+          "nullable": false
+        }
+      ]
+    },
+    "urn:li:dataset:(urn:li:dataPlatform:dbt,analytics.mart_taxi_daily,PROD)": {
+      "urn": "urn:li:dataset:(urn:li:dataPlatform:dbt,analytics.mart_taxi_daily,PROD)",
+      "name": "mart_taxi_daily",
+      "type": "dataset",
+      "platform": "dbt",
+      "owners": [
+        "urn:li:corpuser:analytics-eng"
+      ],
+      "tags": [
+        "mart"
+      ],
+      "description": "Daily taxi GMV and trip counts.",
+      "schema_fields": [
+        {
+          "name": "trip_date",
+          "type": "DATE",
+          "nullable": false
+        },
+        {
+          "name": "trips",
+          "type": "NUMBER",
+          "nullable": false
+        },
+        {
+          "name": "gmv",
+          "type": "FLOAT",
+          "nullable": false
+        }
+      ]
+    },
+    "urn:li:dashboard:(looker,taxi_ops_overview)": {
+      "urn": "urn:li:dashboard:(looker,taxi_ops_overview)",
+      "name": "Taxi Ops Overview",
+      "type": "dashboard",
+      "platform": "looker",
+      "owners": [
+        "urn:li:corpuser:ops-lead"
+      ],
+      "tags": [
+        "executive"
+      ],
+      "description": "Exec dashboard for taxi ops freshness and volume."
+    },
+    "urn:li:mlModel:(urn:li:dataPlatform:sagemaker,demand_forecast_v3,PROD)": {
+      "urn": "urn:li:mlModel:(urn:li:dataPlatform:sagemaker,demand_forecast_v3,PROD)",
+      "name": "demand_forecast_v3",
+      "type": "mlModel",
+      "platform": "sagemaker",
+      "owners": [
+        "urn:li:corpuser:ml-platform"
+      ],
+      "tags": [
+        "production-model"
+      ],
+      "description": "Trip demand forecast model trained on yellow_trips features."
+    },
+    "urn:li:dataset:(urn:li:dataPlatform:postgres,healthcare.vitals,PROD)": {
+      "urn": "urn:li:dataset:(urn:li:dataPlatform:postgres,healthcare.vitals,PROD)",
+      "name": "healthcare.vitals",
+      "type": "dataset",
+      "platform": "postgres",
+      "owners": [
+        "urn:li:corpuser:clinical-data"
+      ],
+      "tags": [
+        "pii",
+        "domain:healthcare"
+      ],
+      "description": "Synthetic patient vitals with planted DQ issues.",
+      "schema_fields": [
+        {
+          "name": "patient_id",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "heart_rate",
+          "type": "INTEGER",
+          "nullable": true
+        },
+        {
+          "name": "measured_at",
+          "type": "TIMESTAMP",
+          "nullable": false
+        }
+      ]
+    },
+    "urn:li:dataset:(urn:li:dataPlatform:dbt,healthcare.mart_vitals_daily,PROD)": {
+      "urn": "urn:li:dataset:(urn:li:dataPlatform:dbt,healthcare.mart_vitals_daily,PROD)",
+      "name": "mart_vitals_daily",
+      "type": "dataset",
+      "platform": "dbt",
+      "owners": [
+        "urn:li:corpuser:clinical-analytics"
+      ],
+      "tags": [
+        "mart",
+        "domain:healthcare"
+      ],
+      "description": "Daily vitals aggregates for clinical dashboards."
+    },
+    "urn:li:dashboard:(looker,clinical_vitals_monitor)": {
+      "urn": "urn:li:dashboard:(looker,clinical_vitals_monitor)",
+      "name": "Clinical Vitals Monitor",
+      "type": "dashboard",
+      "platform": "looker",
+      "owners": [
+        "urn:li:corpuser:clinical-ops"
+      ],
+      "tags": [
+        "healthcare",
+        "oncall"
+      ],
+      "description": "Monitors vitals completeness and heart_rate coverage."
+    },
+    "urn:li:mlModel:(urn:li:dataPlatform:sagemaker,sepsis_risk_v1,PROD)": {
+      "urn": "urn:li:mlModel:(urn:li:dataPlatform:sagemaker,sepsis_risk_v1,PROD)",
+      "name": "sepsis_risk_v1",
+      "type": "mlModel",
+      "platform": "sagemaker",
+      "owners": [
+        "urn:li:corpuser:ml-clinical"
+      ],
+      "tags": [
+        "production-model",
+        "phi"
+      ],
+      "description": "Sepsis risk model using vitals features including heart_rate."
+    },
+    "urn:li:dataset:(urn:li:dataPlatform:snowflake,retail.orders,PROD)": {
+      "urn": "urn:li:dataset:(urn:li:dataPlatform:snowflake,retail.orders,PROD)",
+      "name": "retail.orders",
+      "type": "dataset",
+      "platform": "snowflake",
+      "owners": [
+        "urn:li:corpuser:retail-platform"
+      ],
+      "tags": [
+        "domain:commerce"
+      ],
+      "description": "Fiction retail orders.",
+      "schema_fields": [
+        {
+          "name": "order_id",
+          "type": "STRING",
+          "nullable": false
+        },
+        {
+          "name": "amount",
+          "type": "NUMBER(18,4)",
+          "nullable": false
+        },
+        {
+          "name": "ordered_at",
+          "type": "TIMESTAMP",
+          "nullable": false
+        }
+      ]
+    },
+    "urn:li:dataset:(urn:li:dataPlatform:dbt,mart_daily_revenue,PROD)": {
+      "urn": "urn:li:dataset:(urn:li:dataPlatform:dbt,mart_daily_revenue,PROD)",
+      "name": "mart_daily_revenue",
+      "type": "dataset",
+      "platform": "dbt",
+      "owners": [
+        "urn:li:corpuser:finance-eng"
+      ],
+      "tags": [
+        "finance"
+      ],
+      "description": "Daily revenue mart casting order amounts."
+    },
+    "urn:li:dashboard:(looker,finance_gmv)": {
+      "urn": "urn:li:dashboard:(looker,finance_gmv)",
+      "name": "Finance GMV",
+      "type": "dashboard",
+      "platform": "looker",
+      "owners": [
+        "urn:li:corpuser:finance-lead"
+      ],
+      "tags": [
+        "finance"
+      ],
+      "description": "GMV dashboard depending on orders.amount precision."
+    },
+    "urn:li:dataset:(urn:li:dataPlatform:dbt,retail.dim_customer,PROD)": {
+      "urn": "urn:li:dataset:(urn:li:dataPlatform:dbt,retail.dim_customer,PROD)",
+      "name": "retail.dim_customer",
+      "type": "dataset",
+      "platform": "dbt",
+      "owners": [
+        "urn:li:corpuser:retail-platform"
+      ],
+      "tags": [
+        "dimension"
+      ],
+      "description": "Customer dimension \u2014 currently missing customer_id after refactor.",
+      "schema_fields": [
+        {
+          "name": "customer_sk",
+          "type": "NUMBER",
+          "nullable": false
+        },
+        {
+          "name": "email",
+          "type": "STRING",
+          "nullable": true
+        },
+        {
+          "name": "country",
+          "type": "STRING",
+          "nullable": true
+        }
+      ]
+    },
+    "urn:li:dataset:(urn:li:dataPlatform:snowflake,retail.customers,PROD)": {
+      "urn": "urn:li:dataset:(urn:li:dataPlatform:snowflake,retail.customers,PROD)",
+      "name": "retail.customers",
+      "type": "dataset",
+      "platform": "snowflake",
+      "owners": [
+        "urn:li:corpuser:retail-platform"
+      ],
+      "tags": [
+        "source"
+      ],
+      "description": "Raw customer source with customer_id.",
+      "schema_fields": [
+        {
+          "name": "customer_id",
+          "type": "STRING",
+          "nullable": false
+        },
+        {
+          "name": "email",
+          "type": "STRING",
+          "nullable": true
+        },
+        {
+          "name": "country",
+          "type": "STRING",
+          "nullable": true
+        }
+      ]
+    },
+    "urn:li:dataset:(urn:li:dataPlatform:dbt,retail.fct_orders_enriched,PROD)": {
+      "urn": "urn:li:dataset:(urn:li:dataPlatform:dbt,retail.fct_orders_enriched,PROD)",
+      "name": "retail.fct_orders_enriched",
+      "type": "dataset",
+      "platform": "dbt",
+      "owners": [
+        "urn:li:corpuser:analytics-eng"
+      ],
+      "tags": [
+        "fact"
+      ],
+      "description": "Orders enriched with customer attributes \u2014 join broken.",
+      "schema_fields": [
+        {
+          "name": "order_id",
+          "type": "STRING",
+          "nullable": false
+        },
+        {
+          "name": "customer_id",
+          "type": "STRING",
+          "nullable": true
+        },
+        {
+          "name": "amount",
+          "type": "NUMBER(18,4)",
+          "nullable": false
+        }
+      ]
+    },
+    "urn:li:dataset:(urn:li:dataPlatform:snowflake,ecommerce.raw_orders,PROD)": {
+      "urn": "urn:li:dataset:(urn:li:dataPlatform:snowflake,ecommerce.raw_orders,PROD)",
+      "name": "ecommerce.raw_orders",
+      "type": "dataset",
+      "platform": "snowflake",
+      "owners": [
+        "urn:li:corpuser:commerce-platform"
+      ],
+      "tags": [
+        "domain:ecommerce",
+        "tier:gold",
+        "showcase"
+      ],
+      "description": "Cross-platform showcase orders (Snowflake) \u2014 Kafka landed.",
+      "schema_fields": [
+        {
+          "name": "order_id",
+          "type": "STRING",
+          "nullable": false
+        },
+        {
+          "name": "order_date",
+          "type": "DATE",
+          "nullable": false
+        },
+        {
+          "name": "gmv",
+          "type": "FLOAT",
+          "nullable": true
+        },
+        {
+          "name": "updated_at",
+          "type": "TIMESTAMP",
+          "nullable": false
+        }
+      ]
+    },
+    "urn:li:dataset:(urn:li:dataPlatform:dbt,ecommerce.mart_gmv_daily,PROD)": {
+      "urn": "urn:li:dataset:(urn:li:dataPlatform:dbt,ecommerce.mart_gmv_daily,PROD)",
+      "name": "mart_gmv_daily",
+      "type": "dataset",
+      "platform": "dbt",
+      "owners": [
+        "urn:li:corpuser:analytics-eng"
+      ],
+      "tags": [
+        "mart",
+        "showcase"
+      ],
+      "description": "dbt mart over Snowflake raw_orders"
+    },
+    "urn:li:dashboard:(looker,ecommerce_gmv)": {
+      "urn": "urn:li:dashboard:(looker,ecommerce_gmv)",
+      "name": "Ecommerce GMV",
+      "type": "dashboard",
+      "platform": "looker",
+      "owners": [
+        "urn:li:corpuser:commerce-lead"
+      ],
+      "tags": [
+        "executive",
+        "showcase"
+      ],
+      "description": "Looker GMV tile \u2014 cross-platform consumer"
+    },
+    "urn:li:dashboard:(tableau,ecommerce_exec)": {
+      "urn": "urn:li:dashboard:(tableau,ecommerce_exec)",
+      "name": "Ecommerce Exec Pack",
+      "type": "dashboard",
+      "platform": "tableau",
+      "owners": [
+        "urn:li:corpuser:exec-bi"
+      ],
+      "tags": [
+        "executive",
+        "showcase"
+      ],
+      "description": "Tableau workbook on mart_gmv_daily"
+    },
+    "urn:li:mlFeature:(urn:li:dataPlatform:feast,heart_rate_feature,PROD)": {
+      "urn": "urn:li:mlFeature:(urn:li:dataPlatform:feast,heart_rate_feature,PROD)",
+      "name": "heart_rate_feature",
+      "type": "mlFeature",
+      "platform": "feast",
+      "owners": [
+        "urn:li:corpuser:ml-clinical"
+      ],
+      "tags": [
+        "feature-store"
+      ],
+      "description": "Feast feature for heart_rate used by sepsis_risk_v1",
+      "schema_fields": [
+        {
+          "name": "heart_rate",
+          "type": "FLOAT",
+          "nullable": true
+        }
+      ]
+    },
+    "urn:li:dataset:(urn:li:dataPlatform:s3,nyc-taxi/raw/yellow,PROD)": {
+      "urn": "urn:li:dataset:(urn:li:dataPlatform:s3,nyc-taxi/raw/yellow,PROD)",
+      "name": "s3://nyc-taxi/raw/yellow",
+      "type": "dataset",
+      "platform": "s3",
+      "owners": [
+        "urn:li:corpuser:taxi-platform"
+      ],
+      "tags": [
+        "raw"
+      ],
+      "description": "Upstream S3 landing zone for yellow trips"
+    },
+    "urn:li:dataset:(urn:li:dataPlatform:kafka,ecommerce.orders.v1,PROD)": {
+      "urn": "urn:li:dataset:(urn:li:dataPlatform:kafka,ecommerce.orders.v1,PROD)",
+      "name": "ecommerce.orders.v1",
+      "type": "dataset",
+      "platform": "kafka",
+      "owners": [
+        "urn:li:corpuser:commerce-platform"
+      ],
+      "tags": [
+        "streaming"
+      ],
+      "description": "Kafka topic landing into Snowflake raw_orders"
+    }
+  },
+  "lineage": {
+    "urn:li:dataset:(urn:li:dataPlatform:snowflake,analytics.nyc_taxi.yellow_trips,PROD)": [
+      {
+        "urn": "urn:li:dataset:(urn:li:dataPlatform:dbt,analytics.mart_taxi_daily,PROD)",
+        "impact_reason": "dbt model selects directly from yellow_trips",
+        "columns": [
+          "pickup_date",
+          "fare_amount",
+          "pickup_datetime"
+        ]
+      },
+      {
+        "urn": "urn:li:mlModel:(urn:li:dataPlatform:sagemaker,demand_forecast_v3,PROD)",
+        "impact_reason": "Feature pipeline reads yellow_trips for training/serving",
+        "columns": [
+          "pickup_datetime",
+          "trip_distance",
+          "fare_amount"
+        ]
+      }
+    ],
+    "urn:li:dataset:(urn:li:dataPlatform:dbt,analytics.mart_taxi_daily,PROD)": [
+      {
+        "urn": "urn:li:dashboard:(looker,taxi_ops_overview)",
+        "impact_reason": "Looker explore built on mart_taxi_daily"
+      }
+    ],
+    "urn:li:dataset:(urn:li:dataPlatform:postgres,healthcare.vitals,PROD)": [
+      {
+        "urn": "urn:li:dataset:(urn:li:dataPlatform:dbt,healthcare.mart_vitals_daily,PROD)",
+        "impact_reason": "Aggregates heart_rate completeness from vitals",
+        "columns": [
+          "heart_rate",
+          "patient_id",
+          "measured_at"
+        ]
+      },
+      {
+        "urn": "urn:li:mlFeature:(urn:li:dataPlatform:feast,heart_rate_feature,PROD)",
+        "impact_reason": "Feast feature materializes heart_rate",
+        "columns": [
+          "heart_rate"
+        ]
+      }
+    ],
+    "urn:li:dataset:(urn:li:dataPlatform:dbt,healthcare.mart_vitals_daily,PROD)": [
+      {
+        "urn": "urn:li:dashboard:(looker,clinical_vitals_monitor)",
+        "impact_reason": "Dashboard alerts on vitals null coverage",
+        "columns": [
+          "heart_rate"
+        ]
+      }
+    ],
+    "urn:li:dataset:(urn:li:dataPlatform:snowflake,retail.orders,PROD)": [
+      {
+        "urn": "urn:li:dataset:(urn:li:dataPlatform:dbt,mart_daily_revenue,PROD)",
+        "impact_reason": "Casts amount to NUMBER(10,2)",
+        "columns": [
+          "amount",
+          "ordered_at"
+        ]
+      }
+    ],
+    "urn:li:dataset:(urn:li:dataPlatform:dbt,mart_daily_revenue,PROD)": [
+      {
+        "urn": "urn:li:dashboard:(looker,finance_gmv)",
+        "impact_reason": "Dashboard metric uses mart_daily_revenue.amount"
+      }
+    ],
+    "urn:li:dataset:(urn:li:dataPlatform:dbt,retail.dim_customer,PROD)": [
+      {
+        "urn": "urn:li:dataset:(urn:li:dataPlatform:dbt,retail.fct_orders_enriched,PROD)",
+        "impact_reason": "Join on customer_id currently broken / missing"
+      }
+    ],
+    "urn:li:dataset:(urn:li:dataPlatform:snowflake,ecommerce.raw_orders,PROD)": [
+      {
+        "urn": "urn:li:dataset:(urn:li:dataPlatform:dbt,ecommerce.mart_gmv_daily,PROD)",
+        "impact_reason": "dbt transforms Snowflake raw_orders",
+        "columns": [
+          "order_date",
+          "gmv"
+        ]
+      }
+    ],
+    "urn:li:dataset:(urn:li:dataPlatform:dbt,ecommerce.mart_gmv_daily,PROD)": [
+      {
+        "urn": "urn:li:dashboard:(looker,ecommerce_gmv)",
+        "impact_reason": "Looker tile on mart_gmv_daily"
+      },
+      {
+        "urn": "urn:li:dashboard:(tableau,ecommerce_exec)",
+        "impact_reason": "Tableau workbook on mart_gmv_daily"
+      }
+    ],
+    "urn:li:mlFeature:(urn:li:dataPlatform:feast,heart_rate_feature,PROD)": [
+      {
+        "urn": "urn:li:mlModel:(urn:li:dataPlatform:sagemaker,sepsis_risk_v1,PROD)",
+        "impact_reason": "Model consumes heart_rate_feature",
+        "columns": [
+          "heart_rate"
+        ]
+      }
+    ]
+  },
+  "queries": {
+    "urn:li:dataset:(urn:li:dataPlatform:snowflake,analytics.nyc_taxi.yellow_trips,PROD)": [
+      "SELECT pickup_date, COUNT(*) AS trips, SUM(fare_amount) AS gmv\nFROM analytics.nyc_taxi.yellow_trips\nWHERE pickup_date >= DATEADD('day', -7, CURRENT_DATE)\nGROUP BY 1\nORDER BY 1",
+      "SELECT MAX(pickup_datetime) AS watermark FROM analytics.nyc_taxi.yellow_trips"
+    ],
+    "urn:li:dataset:(urn:li:dataPlatform:postgres,healthcare.vitals,PROD)": [
+      "SELECT patient_id, heart_rate, measured_at FROM healthcare.vitals WHERE measured_at > NOW() - INTERVAL '1 day'"
+    ],
+    "urn:li:dataset:(urn:li:dataPlatform:snowflake,retail.orders,PROD)": [
+      "SELECT DATE_TRUNC('day', ordered_at) AS d, SUM(amount) FROM retail.orders GROUP BY 1"
+    ],
+    "urn:li:dataset:(urn:li:dataPlatform:dbt,retail.dim_customer,PROD)": [
+      "SELECT customer_sk, email, country FROM retail.dim_customer"
+    ],
+    "urn:li:dataset:(urn:li:dataPlatform:snowflake,ecommerce.raw_orders,PROD)": [
+      "SELECT order_date, COUNT(*) AS orders, SUM(gmv) AS gmv\nFROM ecommerce.raw_orders\nWHERE order_date >= DATEADD('day', -7, CURRENT_DATE)\nGROUP BY 1"
+    ]
+  },
+  "assertions": [
+    {
+      "id": "assert-yellow-freshness",
+      "incident_id": "freshness-nyc-taxi",
+      "title": "Freshness SLA failed on yellow_trips",
+      "type": "freshness",
+      "severity": "high",
+      "entity_urn": "urn:li:dataset:(urn:li:dataPlatform:snowflake,analytics.nyc_taxi.yellow_trips,PROD)",
+      "status": "FAILURE",
+      "details": {
+        "sla_hours": 6,
+        "last_success_hours_ago": 29
+      }
+    },
+    {
+      "id": "assert-vitals-heart-rate",
+      "incident_id": "dq-healthcare-vitals",
+      "title": "heart_rate_not_null assertion failed",
+      "type": "data_quality",
+      "severity": "critical",
+      "entity_urn": "urn:li:dataset:(urn:li:dataPlatform:postgres,healthcare.vitals,PROD)",
+      "status": "FAILURE",
+      "details": {
+        "assertion": "heart_rate_not_null",
+        "null_rate": 0.18
+      }
+    },
+    {
+      "id": "assert-orders-schema-compat",
+      "incident_id": "schema-orders-amount",
+      "title": "Downstream cast incompatible with amount precision",
+      "type": "schema_drift",
+      "severity": "medium",
+      "entity_urn": "urn:li:dataset:(urn:li:dataPlatform:snowflake,retail.orders,PROD)",
+      "status": "FAILURE",
+      "details": {
+        "column": "amount",
+        "before": "NUMBER(10,2)",
+        "after": "NUMBER(18,4)"
+      }
+    },
+    {
+      "id": "assert-ecommerce-freshness",
+      "incident_id": "freshness-ecommerce-orders",
+      "title": "Ecommerce raw_orders freshness SLA failed",
+      "type": "freshness",
+      "severity": "high",
+      "entity_urn": "urn:li:dataset:(urn:li:dataPlatform:snowflake,ecommerce.raw_orders,PROD)",
+      "status": "FAILURE",
+      "details": {
+        "sla_hours": 4,
+        "last_success_hours_ago": 18
+      }
+    },
+    {
+      "id": "assert-lineage-customer-dim",
+      "incident_id": "lineage-break-customer-dim",
+      "title": "Lineage edge missing customer_id",
+      "type": "lineage_break",
+      "severity": "high",
+      "entity_urn": "urn:li:dataset:(urn:li:dataPlatform:dbt,retail.dim_customer,PROD)",
+      "status": "FAILURE",
+      "details": {
+        "missing_column": "customer_id"
+      }
+    }
+  ],
+  "lineage_upstream": {
+    "urn:li:dataset:(urn:li:dataPlatform:snowflake,analytics.nyc_taxi.yellow_trips,PROD)": [
+      {
+        "urn": "urn:li:dataset:(urn:li:dataPlatform:s3,nyc-taxi/raw/yellow,PROD)",
+        "impact_reason": "S3 partition land feeds Snowflake yellow_trips",
+        "columns": [
+          "pickup_date"
+        ]
+      }
+    ],
+    "urn:li:dataset:(urn:li:dataPlatform:snowflake,ecommerce.raw_orders,PROD)": [
+      {
+        "urn": "urn:li:dataset:(urn:li:dataPlatform:kafka,ecommerce.orders.v1,PROD)",
+        "impact_reason": "Kafka topic lands into Snowflake",
+        "columns": [
+          "order_id",
+          "gmv"
+        ]
+      }
+    ],
+    "urn:li:dataset:(urn:li:dataPlatform:dbt,retail.dim_customer,PROD)": [
+      {
+        "urn": "urn:li:dataset:(urn:li:dataPlatform:snowflake,retail.customers,PROD)",
+        "impact_reason": "Raw customer source retains customer_id and shared email join key",
+        "columns": [
+          "customer_id",
+          "email"
+        ]
+      }
+    ]
+  }
+}

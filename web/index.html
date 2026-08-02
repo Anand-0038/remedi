@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#0a1420" />
+  <link
+    rel="icon"
+    href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='8' fill='%2308131e'/%3E%3Cpath d='M32 8v48M8 32h48' stroke='%2361d8f3' stroke-width='5'/%3E%3Ccircle cx='32' cy='32' r='10' fill='%23ff6b4a'/%3E%3C/svg%3E"
+  />
+  <meta
+    name="description"
+    content="Remedi ranks data incidents by DataHub graph risk, generates grounded fixes, and writes approved resolution context back."
+  />
+  <title>Remedi — Data incident command</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Sora:wght@400;500;600;700&display=swap"
+    rel="stylesheet"
+  />
+  <link rel="stylesheet" href="/assets/styles.css" />
+</head>
+<body>
+  <header class="command-bar">
+    <a class="brand" href="/" aria-label="Remedi home">
+      <span class="brand-mark" aria-hidden="true">
+        <span></span>
+      </span>
+      <span>
+        <strong>Remedi</strong>
+        <small>data incident command</small>
+      </span>
+    </a>
+
+    <div class="system-state" aria-label="System status">
+      <span class="signal-dot" aria-hidden="true"></span>
+      <span id="context-mode">Checking context…</span>
+      <a id="report-link" href="/api/selftest" target="_blank" rel="noreferrer">Open proof JSON ↗</a>
+    </div>
+  </header>
+
+  <main>
+    <section class="mission">
+      <div class="mission-copy">
+        <p class="eyebrow">DataHub context → production action</p>
+        <h1>Fix the incident.<br /><span>Keep the knowledge.</span></h1>
+        <p class="lede">
+          Remedi traces what broke through the context graph, generates a schema-grounded
+          repair, and seals the exact plan before any write-back.
+        </p>
+      </div>
+
+      <div class="mission-actions">
+        <div class="action-buttons">
+          <button id="run-btn" type="button">
+            <span class="button-index">01</span>
+            Propose grounded fix
+          </button>
+          <button id="apply-btn" type="button" class="secondary" disabled>
+            <span class="button-index">02</span>
+            Apply sealed plan
+          </button>
+          <button id="selftest-btn" type="button" class="quiet">Run judge proof</button>
+        </div>
+        <p class="approval-note">
+          No catalog mutation or on-call notification occurs before approval.
+        </p>
+      </div>
+    </section>
+
+    <section class="trust-strip" aria-label="Product guarantees">
+      <div>
+        <span class="trust-key">Context</span>
+        <strong>Schema + lineage + owners</strong>
+      </div>
+      <div>
+        <span class="trust-key">Guardrail</span>
+        <strong>Groundedness verification</strong>
+      </div>
+      <div>
+        <span class="trust-key">Approval</span>
+        <strong>SHA-256 sealed proposal</strong>
+      </div>
+      <div>
+        <span class="trust-key">Memory</span>
+        <strong>DataHub write-back</strong>
+      </div>
+    </section>
+
+    <section class="workbench" aria-label="Incident response workbench">
+      <aside class="queue-panel">
+        <div class="panel-heading">
+          <div>
+            <p class="panel-kicker">Context-risk queue</p>
+            <h2>Incidents</h2>
+          </div>
+          <span id="queue-count" class="queue-count">—</span>
+        </div>
+        <p class="panel-note">
+          Ranked by severity, graph reach, BI exposure, ML lineage, and ownership.
+        </p>
+        <ul id="incident-list"></ul>
+      </aside>
+
+      <article class="evidence-panel">
+        <div class="selection-bar">
+          <div>
+            <span class="selection-label">Active incident</span>
+            <strong id="selected-title">Loading queue…</strong>
+          </div>
+          <div class="selection-risk">
+            <span>Context risk</span>
+            <strong id="selected-risk">—</strong>
+          </div>
+        </div>
+
+        <div id="status" class="status idle" role="status" aria-live="polite">
+          Reading DataHub context…
+        </div>
+
+        <div id="output" hidden>
+          <section class="proof-overview" aria-label="Run proof summary">
+            <div class="proof-metric">
+              <span>Blast radius</span>
+              <strong id="metric-impact">—</strong>
+              <small>downstream assets</small>
+            </div>
+            <div class="proof-metric">
+              <span>Generated</span>
+              <strong id="metric-artifacts">—</strong>
+              <small>reviewable artifacts</small>
+            </div>
+            <div class="proof-metric">
+              <span>Context calls</span>
+              <strong id="metric-tools">—</strong>
+              <small>audited tool uses</small>
+            </div>
+            <div class="approval-receipt" id="approval-receipt">
+              <span class="receipt-label">Approval receipt</span>
+              <strong id="receipt-state">Awaiting proposal</strong>
+              <code id="receipt-digest">No digest yet</code>
+            </div>
+          </section>
+
+          <div class="meta" id="meta"></div>
+
+          <section class="evidence-section causal-section">
+            <div class="section-heading">
+              <span class="section-index">01</span>
+              <div>
+                <h3>Causal trace</h3>
+                <p>Every decision from incident detection to write-back.</p>
+              </div>
+            </div>
+            <ol id="timeline" class="timeline"></ol>
+          </section>
+
+          <div class="evidence-grid">
+            <section class="evidence-section graph-section">
+              <div class="section-heading">
+                <span class="section-index">02</span>
+                <div>
+                  <h3>Context blast radius</h3>
+                  <p>Upstream cause, downstream consumers, and column impact.</p>
+                </div>
+              </div>
+              <div class="graph-frame">
+                <svg
+                  id="lineage-graph"
+                  class="lineage-graph"
+                  viewBox="0 0 640 230"
+                  role="img"
+                  aria-label="Context lineage blast radius"
+                ></svg>
+              </div>
+              <ul id="blast" class="detail-list"></ul>
+            </section>
+
+            <section class="evidence-section">
+              <div class="section-heading">
+                <span class="section-index">03</span>
+                <div>
+                  <h3>Context audit</h3>
+                  <p>Audited context reads that grounded this decision.</p>
+                </div>
+              </div>
+              <ul id="tools" class="tools"></ul>
+            </section>
+          </div>
+
+          <div class="evidence-grid">
+            <section class="evidence-section">
+              <div class="section-heading">
+                <span class="section-index">04</span>
+                <div>
+                  <h3>Repair plan</h3>
+                  <p id="summary"></p>
+                </div>
+              </div>
+              <ol id="steps" class="detail-list"></ol>
+            </section>
+
+            <section class="evidence-section artifacts-section">
+              <div class="section-heading">
+                <span class="section-index">05</span>
+                <div>
+                  <h3>Merge-ready artifacts</h3>
+                  <p>Open any file to inspect the generated implementation.</p>
+                </div>
+              </div>
+              <ul id="artifacts" class="artifact-list"></ul>
+              <div id="artifact-shell" class="artifact-shell" hidden>
+                <div class="artifact-toolbar">
+                  <span id="artifact-name">Artifact preview</span>
+                  <button id="close-artifact" class="icon-button" type="button" aria-label="Close artifact preview">×</button>
+                </div>
+                <pre id="artifact-preview" class="code-preview"></pre>
+              </div>
+            </section>
+          </div>
+
+          <section class="evidence-section writeback-section">
+            <div class="section-heading">
+              <span class="section-index">06</span>
+              <div>
+                <h3>Approved action + institutional memory</h3>
+                <p>Catalog changes are previewed before the exact sealed plan is applied.</p>
+              </div>
+            </div>
+            <div class="writeback-grid">
+              <div>
+                <h4>Catalog diff</h4>
+                <div class="diff" id="diff"></div>
+              </div>
+              <div>
+                <h4>Write-back actions</h4>
+                <ul id="writeback" class="tools"></ul>
+                <h4>On-call action</h4>
+                <ul id="actions" class="tools"></ul>
+              </div>
+            </div>
+          </section>
+        </div>
+      </article>
+    </section>
+  </main>
+
+  <footer>
+    <span id="product-version">Remedi</span>
+    <span>Replay mode is deterministic and clearly labeled. Live mode fails closed.</span>
+    <span>Apache-2.0</span>
+  </footer>
+
+  <script src="/assets/app.js"></script>
+</body>
+</html>
