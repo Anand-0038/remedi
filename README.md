@@ -17,7 +17,6 @@ incident → lineage blast radius → codegen PR artifacts → DataHub write-bac
 ## Quickstart (fixture mode — no DataHub required)
 
 ```bash
-cd remedi
 make verify-local        # pytest + selftest (recommended gate)
 uv run remedi serve      # → http://localhost:8790
 ```
@@ -26,7 +25,7 @@ Or step-by-step: `uv sync` → `uv run remedi selftest` → `uv run remedi serve
 
 ## For judges
 
-**< 5 min path:** [`../hack/DEMO.md`](../hack/DEMO.md) · Criteria: [`../hack/JUDGES.md`](../hack/JUDGES.md) · Deploy: [`../hack/DEPLOY.md`](../hack/DEPLOY.md)
+**< 5 min path:** [`hack/DEMO.md`](hack/DEMO.md) · Criteria: [`hack/JUDGES.md`](hack/JUDGES.md) · Deploy: [`hack/DEPLOY.md`](hack/DEPLOY.md)
 
 ## What judges should look at
 
@@ -36,8 +35,8 @@ Or step-by-step: `uv sync` → `uv run remedi selftest` → `uv run remedi serve
 | `examples/transcripts/` | Example DataHub tool-call transcript |
 | `examples/fixtures/` | Labeled replay catalog: assertions + lineage |
 | `skills/remedi/SKILL.md` | DataHub Skill draft for OSS bonus |
-| `../hack/JUDGES.md` | Judge walkthrough |
-| `../hack/strategy.md` | Why this wins |
+| `hack/JUDGES.md` | Judge walkthrough |
+| `hack/strategy.md` | Why this wins |
 
 ## Demo highlights (v0.10.0)
 
@@ -46,7 +45,7 @@ Or step-by-step: `uv sync` → `uv run remedi selftest` → `uv run remedi serve
 - **Strict live boundary** — entity, lineage, search, and mutation failures never fall back
   to replay data or local success
 - **Context-risk triage** — automatically ranks the queue from severity + DataHub graph impact
-- **27-check selftest** — includes action gating, triage, generated-code validation,
+- **Deep selftest suite** — includes action gating, triage, generated-code validation,
   replay defense, and tamper rejection
 - **Propose stores `run_id` → Apply exact plan** (no silent re-codegen)
 - **Tamper-evident approval digest** — Apply rejects a stored plan changed after review
@@ -57,7 +56,10 @@ Or step-by-step: `uv sync` → `uv run remedi selftest` → `uv run remedi serve
 - **`remedi selftest`** / UI Selftest button for submission confidence
 - Assertion detection, tool audit, SVG graph, PR packages
 
-![Remedi proof workbench](../hack/assets/remedi-proof-workbench.webp)
+![Remedi queue](hack/assets/01-queue.png)
+![Remedi proposal](hack/assets/02-proposal.png)
+![Remedi applied receipt](hack/assets/03-applied.png)
+![Remedi mobile proof](hack/assets/04-mobile.png)
 
 ## One-command judge path
 
@@ -112,7 +114,22 @@ curl -H "Authorization: Bearer ${REMEDI_API_KEY}" http://localhost:8790/api/inci
 
 ## Architecture (short)
 
-See `../hack/architecture.md`.
+```mermaid
+flowchart LR
+  A[DataHub or fixture catalog] -->|discover incidents| B[Connector / Adapter]
+  B --> C[Incidents + owner + schema context]
+  C --> D[Lineage tracer]
+  D --> E[Coder + Detector + Verifier]
+  E --> F[Review bundle + proposal]
+  F --> G[Proposal store + digest]
+  G --> H[Human approval]
+  H --> I[/api/apply run_id/]
+  I --> J[Writer + connector writes]
+  J --> K[Artifact output + catalog tags / glossary / document]
+  J --> L[Selftest + proof APIs]
+```
+
+For the full narrative and dependency split (`fixture` vs `live`), see [`hack/architecture.md`](hack/architecture.md).
 
 ## License
 
